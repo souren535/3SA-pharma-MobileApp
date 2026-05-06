@@ -49,3 +49,27 @@ Join our community of developers creating universal apps.
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 # 3SA-pharma-MobileApp
+
+## Manual Dependencies
+The following packages were manually installed to provide specific functionality beyond the core Expo starter.
+
+| Package Name | Description / Usage |
+| :--- | :--- |
+| **NativeWind & TailwindCSS** | `nativewind`, `tailwindcss`, `postcss` - Utility-first styling for React Native using Tailwind patterns. |
+| **Zustand** | `zustand` - Lightweight and fast state management. |
+| **WatermelonDB** | `@nozbe/watermelondb` - High-performance reactive database for offline-first data. |
+| **Vision Camera** | `react-native-vision-camera` - Advanced camera functionalities (QR scanning, high-res capture). |
+| **React Hook Form** | `react-hook-form`, `@hookform/resolvers`, `yup` - Efficient form management and schema-based validation. |
+| **Axios** | `axios` - Standard HTTP client for API interactions. |
+| **MMKV Storage** | `react-native-mmkv` - Ultra-fast key-value storage for persistent settings. |
+| **Background Fetch** | `react-native-background-fetch` - Handles periodic background tasks and data syncing. |
+| **Geolocation** | `react-native-geolocation-service` - Accurate GPS tracking and location services. |
+| **Device Info** | `react-native-device-info` - Accesses hardware and OS metadata. |
+| **Keychain** | `react-native-keychain` - Securely stores sensitive data like authentication tokens. |
+| **Toast Messages** | `react-native-toast-message` - Customizable popup notifications for user feedback. |
+| **Date Utils** | `date-fns` - Comprehensive library for date formatting and manipulation. |
+| **Polyline** | `@mapbox/polyline` - Tools for encoding/decoding map route paths. |
+| **Image Picker** | `react-native-image-picker` - Media selection from gallery or camera. |
+| **Skeleton Loader** | `react-native-skeleton-placeholder` - Shimmering loading UI states for better user experience. |
+| **Linear Gradient** | `react-native-linear-gradient` - Used for visual depth and premium UI designs. |
+
