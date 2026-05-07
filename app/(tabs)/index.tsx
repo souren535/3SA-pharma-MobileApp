@@ -133,7 +133,7 @@ export default function HomeScreen() {
           <View className="flex-row justify-between mb-6 gap-[10px]">
             {/* Pending */}
             <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#FFFBEB]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#FEF3C7]">
+              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2">
                 <MaterialIcons name="schedule" size={18} color="#D97706" />
               </View>
               <Text className="text-[20px] font-extrabold mb-0.5 text-[#D97706]">

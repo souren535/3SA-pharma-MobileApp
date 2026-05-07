@@ -32,7 +32,7 @@ export default function TabLayout() {
   }) => {
     if (focused) {
       return (
-        <View className="flex-row items-center justify-center bg-[#1A3F75] w-32 h-14 rounded-full">
+        <View className="flex-row items-center justify-center bg-[#1A3F75] w-24 h-12 rounded-full">
           <MaterialIcons name={name} size={20} color="#fff" />
           {label && (
             <Text className="text-white text-sm font-bold ml-2">{label}</Text>
@@ -56,19 +56,23 @@ export default function TabLayout() {
         tabBarShowLabel: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: "transparent",
+          backgroundColor: "#F3F6F8",
           borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
-          left: 20,
-          right: 20,
-          bottom: 15,
-          height: 64,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 80,
+          paddingBottom: 5,
+          paddingTop: 10,
         },
         tabBarItemStyle: {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
+          paddingHorizontal: 0,
+          marginHorizontal: -12,
         },
       }}
     >

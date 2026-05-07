@@ -1,0 +1,10 @@
+import { Stack } from "expo-router";
+
+export default function PagesLayout() {
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="storeInfo" />
+      <Stack.Screen name="orderCreate" />
+    </Stack>
+  );
+}
