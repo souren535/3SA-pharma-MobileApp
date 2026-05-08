@@ -85,6 +85,7 @@ const productCatalog = [
     name: "Paracetamol 500mg",
     composition: "Acetaminophen 500mg",
     brand: "Cipla",
+    category: "Pain Relief",
     price: 35,
     unit: "Strip (10)",
     image:
@@ -95,6 +96,7 @@ const productCatalog = [
     name: "Amoxicillin 250mg",
     composition: "Amoxicillin Trihydrate 250mg",
     brand: "Sun Pharma",
+    category: "Antibiotics",
     price: 85,
     unit: "Strip (10)",
     image:
@@ -105,6 +107,7 @@ const productCatalog = [
     name: "Cetirizine 10mg",
     composition: "Cetirizine Dihydrochloride 10mg",
     brand: "Dr. Reddy",
+    category: "Allergy",
     price: 28,
     unit: "Strip (10)",
     image:
@@ -115,6 +118,7 @@ const productCatalog = [
     name: "Omeprazole 20mg",
     composition: "Omeprazole 20mg",
     brand: "Mankind",
+    category: "Stomach Care",
     price: 62,
     unit: "Strip (15)",
     image:
@@ -125,6 +129,7 @@ const productCatalog = [
     name: "Azithromycin 500mg",
     composition: "Azithromycin Dihydrate 500mg",
     brand: "Cipla",
+    category: "Antibiotics",
     price: 120,
     unit: "Strip (3)",
     image:
@@ -135,12 +140,15 @@ const productCatalog = [
     name: "Metformin 500mg",
     composition: "Metformin HCl 500mg",
     brand: "USV",
+    category: "Diabetes",
     price: 45,
     unit: "Strip (10)",
     image:
       "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=100&auto=format&fit=crop",
   },
 ];
+
+const CATEGORIES = ["All", "Pain Relief", "Antibiotics", "Allergy", "Stomach Care", "Diabetes"];
 
 interface CartItem {
   id: number;
@@ -167,6 +175,8 @@ export default function OrderCreateScreen() {
   const [selectedStore, setSelectedStore] = useState(preSelectedStore);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [modalSearch, setModalSearch] = useState("");
   const [note, setNote] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -174,11 +184,14 @@ export default function OrderCreateScreen() {
 
   const selectedStoreData = allStores.find((s) => s.name === selectedStore);
 
-  const filteredModalProducts = productCatalog.filter(
-    (p) =>
+  const filteredModalProducts = productCatalog.filter((p) => {
+    const matchesSearch =
       p.name.toLowerCase().includes(modalSearch.toLowerCase()) ||
-      p.composition.toLowerCase().includes(modalSearch.toLowerCase()),
-  );
+      p.composition.toLowerCase().includes(modalSearch.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "All" || p.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const toggleProduct = (product: (typeof productCatalog)[0]) => {
     const existing = cart.find((c) => c.id === product.id);
@@ -483,6 +496,47 @@ export default function OrderCreateScreen() {
         </View>
       )}
 
+      {/* Category Selection Modal */}
+      <Modal visible={showCategoryModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/40 justify-end">
+          <View
+            className="bg-white rounded-t-3xl"
+            style={{
+              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 36,
+            }}
+          >
+            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <Text className="text-lg font-bold text-gray-800">
+                Select Category
+              </Text>
+              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView className="px-5 mt-4" style={{ maxHeight: Dimensions.get("window").height * 0.5 }}>
+              {CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  className={`flex-row items-center justify-between py-4 border-b border-gray-50`}
+                  onPress={() => {
+                    setSelectedCategory(cat);
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <Text className={`text-[15px] ${selectedCategory === cat ? 'font-bold text-[#4C73B6]' : 'text-gray-700'}`}>
+                    {cat}
+                  </Text>
+                  {selectedCategory === cat && (
+                    <Ionicons name="checkmark-circle" size={22} color="#4C73B6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Product Selection Modal */}
       <Modal visible={showProductModal} animationType="slide" transparent>
         <View className="flex-1 bg-black/40 justify-end">
@@ -502,17 +556,38 @@ export default function OrderCreateScreen() {
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {/* Modal Search */}
-            <View className="mx-5 mb-3 bg-[#F1F5F9] rounded-xl flex-row items-center px-4 py-2.5">
-              <Ionicons name="search" size={18} color="#9CA3AF" />
-              <TextInput
-                placeholder="Search by name or composition..."
-                placeholderTextColor="#9CA3AF"
-                className="flex-1 ml-3 text-[13px] text-gray-800"
-                value={modalSearch}
-                onChangeText={setModalSearch}
-              />
+            {/* Modal Search & Category Filter */}
+            <View className="mx-5 mb-3 flex-row gap-2">
+              <View className="flex-1 bg-[#F1F5F9] rounded-xl flex-row items-center px-4 py-2.5">
+                <Ionicons name="search" size={18} color="#9CA3AF" />
+                <TextInput
+                  placeholder="Search by name..."
+                  placeholderTextColor="#9CA3AF"
+                  className="flex-1 ml-3 text-[13px] text-gray-800"
+                  value={modalSearch}
+                  onChangeText={setModalSearch}
+                />
+              </View>
+              <TouchableOpacity
+                className="bg-[#EEF2FF] px-4 rounded-xl items-center justify-center border border-[#D1D5DB]"
+                onPress={() => setShowCategoryModal(true)}
+              >
+                <Ionicons name="filter" size={18} color="#4C73B6" />
+              </TouchableOpacity>
             </View>
+
+            {/* Category Filter Badge */}
+            {selectedCategory !== "All" && (
+              <View className="mx-5 mb-3 flex-row">
+                <View className="bg-[#4C73B6] px-3 py-1.5 rounded-full flex-row items-center">
+                  <Text className="text-white text-[12px] font-bold mr-2">{selectedCategory}</Text>
+                  <TouchableOpacity onPress={() => setSelectedCategory("All")}>
+                    <Ionicons name="close-circle" size={16} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {/* Product List */}
             <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
               {filteredModalProducts.map((product) => {

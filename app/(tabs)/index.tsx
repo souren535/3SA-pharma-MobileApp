@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,11 +6,17 @@ import {
   StatusBar,
   TouchableOpacity,
   Dimensions,
+  Modal,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import LottieView from "lottie-react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Location from "expo-location";
+import { Image } from "expo-image";
 
 const { width } = Dimensions.get("window");
 
@@ -22,6 +28,115 @@ export default function HomeScreen() {
     month: "short",
     year: "numeric",
   });
+
+  // Attendance states
+  const [isWorking, setIsWorking] = useState(false);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [selfieUri, setSelfieUri] = useState<string | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
+
+  // Custom popup modal states
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [popupTitle, setPopupTitle] = useState("");
+  const [popupMessage, setPopupMessage] = useState("");
+  const [popupType, setPopupType] = useState<"confirm" | "info">("info");
+  const [popupOnConfirm, setPopupOnConfirm] = useState<(() => void) | null>(null);
+
+  // Show custom popup instead of Alert.alert
+  const showPopup = (
+    title: string,
+    message: string,
+    type: "confirm" | "info" = "info",
+    onConfirm?: () => void,
+  ) => {
+    setPopupTitle(title);
+    setPopupMessage(message);
+    setPopupType(type);
+    setPopupOnConfirm(() => onConfirm || null);
+    setPopupVisible(true);
+  };
+
+  const handlePowerPress = () => {
+    if (isWorking) {
+      // Stop work flow
+      showPopup(
+        "Stop Working",
+        "Are you sure you want to stop your work day?",
+        "confirm",
+        () => {
+          setIsWorking(false);
+          setPopupVisible(false);
+          showPopup("Work Ended", "Your work day has been stopped successfully.", "info");
+        },
+      );
+    } else {
+      // Start work flow
+      showPopup(
+        "Start Working",
+        "Are you sure you want to start your work day?",
+        "confirm",
+        async () => {
+          setPopupVisible(false);
+          // Request permissions
+          if (!cameraPermission?.granted) {
+            await requestCameraPermission();
+          }
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== "granted") {
+            showPopup("Permission Denied", "Location permission is required.", "info");
+            return;
+          }
+          // Auto-fetch location
+          setLocationLoading(true);
+          setShowAttendanceModal(true);
+          try {
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            setLocation({
+              lat: loc.coords.latitude,
+              lng: loc.coords.longitude,
+            });
+          } catch (error) {
+            console.log("Location error:", error);
+          }
+          setLocationLoading(false);
+        },
+      );
+    }
+  };
+
+  const takeSelfie = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.7,
+      });
+      setSelfieUri(photo.uri);
+    }
+  };
+
+  const handleAttendanceSubmit = () => {
+    if (!selfieUri) {
+      showPopup("Required", "Please take a selfie first.", "info");
+      return;
+    }
+    if (!location) {
+      showPopup("Required", "Location not captured yet.", "info");
+      return;
+    }
+    console.log("Attendance submitted:", { selfieUri, location });
+    setIsWorking(true);
+    setSelfieUri(null);
+    setLocation(null);
+    setShowAttendanceModal(false);
+    showPopup("Success", "Attendance marked successfully! Your work day has started.", "info");
+  };
+
+  // Dynamic colors based on work status
+  const powerIconColor = isWorking ? "#DC2626" : "#059669";
 
   return (
     <View className="flex-1 bg-[#F1F5F9]">
@@ -67,11 +182,14 @@ export default function HomeScreen() {
               Souren Khan
             </Text>
             <View className="items-center relative">
-              <TouchableOpacity className="w-[40px] h-[40px] rounded-full bg-white justify-center items-center z-10">
+              <TouchableOpacity
+                onPress={handlePowerPress}
+                className="w-[40px] h-[40px] rounded-full bg-white justify-center items-center z-10"
+              >
                 <MaterialIcons
                   name="power-settings-new"
                   size={24}
-                  color="green"
+                  color={powerIconColor}
                 />
               </TouchableOpacity>
               <LottieView
@@ -84,7 +202,7 @@ export default function HomeScreen() {
                   position: "absolute",
                   bottom: -30,
                   right: -30,
-                  // zIndex: 10,
+                  tintColor: isWorking ? "#DC2626" : undefined,
                 }}
               />
             </View>
@@ -228,6 +346,205 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ===== CUSTOM POPUP MODAL ===== */}
+      <Modal visible={popupVisible} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center px-8">
+          <View className="bg-white rounded-3xl w-full p-6 items-center shadow-xl">
+            {/* Icon */}
+            <View
+              className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${
+                popupType === "confirm" ? "bg-[#EFF6FF]" : popupTitle === "Success" ? "bg-[#ECFDF5]" : popupTitle.includes("Denied") || popupTitle === "Required" ? "bg-[#FEF2F2]" : "bg-[#EFF6FF]"
+              }`}
+            >
+              <MaterialIcons
+                name={
+                  popupType === "confirm"
+                    ? "help-outline"
+                    : popupTitle === "Success"
+                      ? "check-circle"
+                      : popupTitle.includes("Denied") || popupTitle === "Required"
+                        ? "error-outline"
+                        : "info-outline"
+                }
+                size={32}
+                color={
+                  popupType === "confirm"
+                    ? "#1A3F75"
+                    : popupTitle === "Success"
+                      ? "#059669"
+                      : popupTitle.includes("Denied") || popupTitle === "Required"
+                        ? "#DC2626"
+                        : "#1A3F75"
+                }
+              />
+            </View>
+
+            <Text className="text-[18px] font-bold text-gray-800 mb-2 text-center">
+              {popupTitle}
+            </Text>
+            <Text className="text-[14px] text-gray-500 text-center mb-6 leading-5">
+              {popupMessage}
+            </Text>
+
+            {popupType === "confirm" ? (
+              <View className="flex-row gap-3 w-full">
+                <TouchableOpacity
+                  className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
+                  onPress={() => setPopupVisible(false)}
+                >
+                  <Text className="text-gray-600 font-bold text-[14px]">No</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+                  onPress={() => popupOnConfirm?.()}
+                >
+                  <Text className="text-white font-bold text-[14px]">Yes</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                className="w-full py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+                onPress={() => setPopupVisible(false)}
+              >
+                <Text className="text-white font-bold text-[14px]">OK</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== ATTENDANCE MODAL ===== */}
+      <Modal visible={showAttendanceModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View
+            className="bg-white rounded-t-3xl"
+            style={{
+              maxHeight: Dimensions.get("window").height * 0.85,
+              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 30,
+            }}
+          >
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <Text className="text-lg font-bold text-gray-800">
+                Mark Attendance
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setSelfieUri(null);
+                  setLocation(null);
+                  setShowAttendanceModal(false);
+                }}
+              >
+                <MaterialIcons name="close" size={26} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="px-5 mt-4" showsVerticalScrollIndicator={false}>
+              {/* Camera Section */}
+              <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
+                Take a Selfie
+              </Text>
+              <View
+                className="bg-gray-100 rounded-2xl overflow-hidden mb-5"
+                style={{ height: 300 }}
+              >
+                {selfieUri ? (
+                  <View style={{ flex: 1 }}>
+                    <Image
+                      source={{ uri: selfieUri }}
+                      style={{ flex: 1 }}
+                      contentFit="cover"
+                    />
+                    <TouchableOpacity
+                      className="absolute bottom-3 right-3 bg-white/90 px-4 py-2 rounded-xl"
+                      onPress={() => setSelfieUri(null)}
+                    >
+                      <Text className="text-[#1A3F75] font-bold text-xs">
+                        Retake
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : cameraPermission?.granted ? (
+                  <View style={{ flex: 1 }}>
+                    <CameraView
+                      ref={cameraRef}
+                      style={{ flex: 1 }}
+                      facing="front"
+                    />
+                    <TouchableOpacity
+                      className="absolute bottom-4 self-center w-16 h-16 rounded-full bg-white border-4 border-[#1A3F75] items-center justify-center"
+                      onPress={takeSelfie}
+                    >
+                      <View className="w-12 h-12 rounded-full bg-[#1A3F75]" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View className="flex-1 items-center justify-center">
+                    <MaterialIcons name="camera-alt" size={40} color="#9CA3AF" />
+                    <Text className="text-gray-400 mt-2 text-sm">
+                      Camera permission required
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Location Section */}
+              <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
+                Location (Auto-Captured)
+              </Text>
+              <View className="bg-gray-50 rounded-xl p-4 mb-5 border border-gray-100">
+                {locationLoading ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color="#1A3F75" />
+                    <Text className="ml-3 text-gray-500 text-sm">
+                      Fetching location...
+                    </Text>
+                  </View>
+                ) : location ? (
+                  <View>
+                    <View className="flex-row items-center mb-2">
+                      <MaterialIcons
+                        name="my-location"
+                        size={18}
+                        color="#059669"
+                      />
+                      <Text className="ml-2 text-green-700 font-bold text-sm">
+                        Location Captured ✓
+                      </Text>
+                    </View>
+                    <Text className="text-gray-600 text-xs">
+                      Lat: {location.lat.toFixed(6)}
+                    </Text>
+                    <Text className="text-gray-600 text-xs mt-1">
+                      Lng: {location.lng.toFixed(6)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text className="text-gray-400 text-sm">
+                    Location not available
+                  </Text>
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Submit Button */}
+            <View className="px-5 pt-3">
+              <TouchableOpacity
+                className={`py-4 rounded-2xl items-center shadow-md ${
+                  selfieUri && location ? "bg-[#1A3F75]" : "bg-gray-300"
+                }`}
+                onPress={handleAttendanceSubmit}
+                disabled={!selfieUri || !location}
+              >
+                <Text className="text-white text-[15px] font-bold">
+                  Submit Attendance
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

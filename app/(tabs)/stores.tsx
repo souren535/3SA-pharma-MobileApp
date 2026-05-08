@@ -115,8 +115,11 @@ export default function StoresScreen() {
         ))}
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity className="absolute bottom-[100px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5">
+      {/* FAB - Navigate to Create Store page */}
+      <TouchableOpacity
+        className="absolute bottom-[100px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
+        onPress={() => router.push('/pages/createStore')}
+      >
         <Feather name="plus" size={26} color="white" />
       </TouchableOpacity>
     </View>
