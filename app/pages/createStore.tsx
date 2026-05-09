@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Platform,
-  Image, TextInput, Modal, KeyboardAvoidingView,
+  Image, TextInput, Modal, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,71 @@ const INDIAN_STATES = [
   'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
   'Delhi', 'Jammu & Kashmir', 'Ladakh',
 ];
+
+// ─── Input Component ─────────────────────────────────
+const InputField = ({
+  label, value, onChangeText, placeholder, required = false,
+  keyboardType = 'default' as any, multiline = false, maxLength, prefix,
+  editable = true, loading = false,
+}: any) => (
+  <View className="mb-4">
+    <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
+      {label}{required ? ' *' : ''}
+    </Text>
+    <View className={`flex-row items-center rounded-xl border border-gray-100 ${editable ? 'bg-gray-50' : 'bg-gray-100'}`}>
+      {prefix && (
+        <Text className="pl-3.5 text-[14px] font-semibold text-gray-600">{prefix}</Text>
+      )}
+      <TextInput
+        className={`flex-1 p-3.5 text-[14px] ${editable ? 'text-gray-800' : 'text-gray-500'}`}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        multiline={multiline}
+        maxLength={maxLength}
+        editable={editable}
+        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
+        style={multiline ? { minHeight: 60, textAlignVertical: 'top' } : undefined}
+      />
+      {loading && (
+        <View className="pr-3.5">
+          <ActivityIndicator size="small" color="#1A3F75" />
+        </View>
+      )}
+    </View>
+  </View>
+);
+
+// ─── Dropdown Component ───────────────────────────────
+const DropdownField = ({ label, value, onPress, placeholder, required = false, disabled = false }: any) => (
+  <View className="mb-4">
+    <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
+      {label}{required ? ' *' : ''}
+    </Text>
+    <TouchableOpacity
+      className={`flex-row items-center justify-between rounded-xl border border-gray-100 p-3.5 ${disabled ? 'bg-gray-100' : 'bg-gray-50'}`}
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={disabled ? 1 : 0.7}
+    >
+      <Text className={`text-[14px] ${value ? (disabled ? 'text-gray-500 font-medium' : 'text-gray-800 font-medium') : 'text-gray-400'}`}>
+        {value || placeholder}
+      </Text>
+      {!disabled && <Ionicons name="chevron-down" size={18} color="#9CA3AF" />}
+    </TouchableOpacity>
+  </View>
+);
+
+// ─── Review Item ──────────────────────────────────────
+const ReviewItem = ({ label, value }: { label: string; value: string }) => (
+  <View className="py-2.5 border-b border-gray-50">
+    <Text className="text-xs text-gray-500 mb-1">{label}</Text>
+    <Text className="text-[13px] font-bold text-gray-800" numberOfLines={2}>
+      {value || '—'}
+    </Text>
+  </View>
+);
 
 export default function CreateStoreScreen() {
   const insets = useSafeAreaInsets();
@@ -44,6 +109,31 @@ export default function CreateStoreScreen() {
   const [pin, setPin] = useState('');
   const [state, setState] = useState('');
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [loadingPin, setLoadingPin] = useState(false);
+
+  const handlePinChange = async (text: string) => {
+    const pinCode = text.replace(/[^0-9]/g, '');
+    setPin(pinCode);
+    if (pinCode.length === 6) {
+      setLoadingPin(true);
+      try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${pinCode}`);
+        const data = await response.json();
+        if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+          const po = data[0].PostOffice[0];
+          setDistrict(po.District);
+          setState(po.State);
+          setCity(po.Block && po.Block !== 'NA' ? po.Block : po.District);
+        } else {
+          showPopup('Error', 'Invalid PIN Code. Please enter a valid Indian PIN.');
+        }
+      } catch (error) {
+        console.error('Error fetching pin details:', error);
+      } finally {
+        setLoadingPin(false);
+      }
+    }
+  };
 
   // Step 3 – Legal
   const [licenseNo, setLicenseNo] = useState('');
@@ -141,62 +231,7 @@ export default function CreateStoreScreen() {
     // Navigate back after popup is dismissed — handled in popup OK
   };
 
-  // ─── Input Component ─────────────────────────────────
-  const InputField = ({
-    label, value, onChangeText, placeholder, required = false,
-    keyboardType = 'default' as any, multiline = false, maxLength, prefix,
-  }: any) => (
-    <View className="mb-4">
-      <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
-        {label}{required ? ' *' : ''}
-      </Text>
-      <View className="flex-row items-center bg-gray-50 rounded-xl border border-gray-100">
-        {prefix && (
-          <Text className="pl-3.5 text-[14px] font-semibold text-gray-600">{prefix}</Text>
-        )}
-        <TextInput
-          className="flex-1 p-3.5 text-[14px] text-gray-800"
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType}
-          multiline={multiline}
-          maxLength={maxLength}
-          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
-          style={multiline ? { minHeight: 60, textAlignVertical: 'top' } : undefined}
-        />
-      </View>
-    </View>
-  );
 
-  // ─── Dropdown Component ───────────────────────────────
-  const DropdownField = ({ label, value, onPress, placeholder, required = false }: any) => (
-    <View className="mb-4">
-      <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
-        {label}{required ? ' *' : ''}
-      </Text>
-      <TouchableOpacity
-        className="flex-row items-center justify-between bg-gray-50 rounded-xl border border-gray-100 p-3.5"
-        onPress={onPress}
-      >
-        <Text className={`text-[14px] ${value ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
-          {value || placeholder}
-        </Text>
-        <Ionicons name="chevron-down" size={18} color="#9CA3AF" />
-      </TouchableOpacity>
-    </View>
-  );
-
-  // ─── Review Item ──────────────────────────────────────
-  const ReviewItem = ({ label, value }: { label: string; value: string }) => (
-    <View className="flex-row justify-between py-2.5 border-b border-gray-50">
-      <Text className="text-xs text-gray-500 flex-1">{label}</Text>
-      <Text className="text-xs font-semibold text-gray-800 flex-1 text-right" numberOfLines={2}>
-        {value || '—'}
-      </Text>
-    </View>
-  );
 
   // ─── STEP RENDERERS ───────────────────────────────────
   const renderStep1 = () => (
@@ -237,15 +272,16 @@ export default function CreateStoreScreen() {
 
   const renderStep2 = () => (
     <>
+      <InputField
+        label="PIN Code" value={pin} onChangeText={handlePinChange}
+        placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6}
+        loading={loadingPin}
+      />
       <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required />
       <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" />
       <InputField label="City" value={city} onChangeText={setCity} placeholder="Enter city" required />
-      <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required />
-      <InputField
-        label="PIN Code" value={pin} onChangeText={(t: string) => setPin(t.replace(/[^0-9]/g, ''))}
-        placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6}
-      />
-      <DropdownField label="State" value={state} onPress={() => setShowStatePicker(true)} placeholder="Select state" required />
+      <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required editable={pin.length !== 6} />
+      <DropdownField label="State" value={state} onPress={() => setShowStatePicker(true)} placeholder="Select state" required disabled={pin.length === 6} />
     </>
   );
 
@@ -346,21 +382,23 @@ export default function CreateStoreScreen() {
                 <React.Fragment key={step}>
                   {/* Step Item */}
                   <TouchableOpacity
-                    className={`flex-row items-center px-3 py-1.5 rounded-full mr-2 ${
-                      isCompleted ? 'bg-[#059669]' : isActive ? 'bg-white' : 'bg-white/20'
-                    }`}
+                    className="flex-row items-center mr-2"
                     onPress={() => {
                       if (index <= currentStep) setCurrentStep(index);
                     }}
                   >
-                    {isCompleted ? (
-                      <Ionicons name="checkmark" size={14} color="white" />
-                    ) : (
-                      <Text className={`text-[11px] font-bold ${isActive ? 'text-[#1A3F75]' : 'text-white/60'}`}>
-                        {index + 1}
-                      </Text>
-                    )}
-                    <Text className={`text-[11px] font-bold ml-1.5 ${isCompleted ? 'text-white' : isActive ? 'text-[#1A3F75]' : 'text-white/60'}`}>
+                    <View className={`w-6 h-6 rounded-full items-center justify-center ${
+                      isCompleted ? 'bg-[#059669]' : isActive ? 'bg-white' : 'bg-white/20'
+                    }`}>
+                      {isCompleted ? (
+                        <Ionicons name="checkmark" size={14} color="white" />
+                      ) : (
+                        <Text className={`text-[11px] font-bold ${isActive ? 'text-[#1A3F75]' : 'text-white/60'}`}>
+                          {index + 1}
+                        </Text>
+                      )}
+                    </View>
+                    <Text className={`text-[12px] font-bold ml-2 ${isCompleted ? 'text-white' : isActive ? 'text-white' : 'text-white/60'}`}>
                       {step}
                     </Text>
                   </TouchableOpacity>
@@ -368,7 +406,7 @@ export default function CreateStoreScreen() {
                   {/* Connector */}
                   {index < STEPS.length - 1 && (
                     <View className="justify-center mr-2">
-                       <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" />
+                       <View className="w-8 h-[2px] bg-white/40" />
                     </View>
                   )}
                 </React.Fragment>
@@ -385,7 +423,7 @@ export default function CreateStoreScreen() {
       >
         <ScrollView
           className="flex-1 px-5 pt-5"
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -394,30 +432,30 @@ export default function CreateStoreScreen() {
           {currentStep === 2 && renderStep3()}
           {currentStep === 3 && renderStep4()}
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* ─── Bottom Action Bar ────────────────────────────── */}
-      <View
-        className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 flex-row gap-3"
-        style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 16, paddingTop: 12 }}
-      >
-        {currentStep > 0 && (
-          <TouchableOpacity
-            className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
-            onPress={handlePrevious}
-          >
-            <Text className="text-gray-600 font-bold text-[14px]">Previous</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
-          onPress={currentStep === 3 ? handleSubmit : handleNext}
+        {/* ─── Bottom Action Bar ────────────────────────────── */}
+        <View
+          className="bg-white border-t border-gray-100 px-5 flex-row gap-3"
+          style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : Math.max(insets.bottom + 8, 16), paddingTop: 12 }}
         >
-          <Text className="text-white font-bold text-[14px]">
-            {currentStep === 3 ? 'Submit' : 'Next'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          {currentStep > 0 && (
+            <TouchableOpacity
+              className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
+              onPress={handlePrevious}
+            >
+              <Text className="text-gray-600 font-bold text-[14px]">Previous</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+            onPress={currentStep === 3 ? handleSubmit : handleNext}
+          >
+            <Text className="text-white font-bold text-[14px]">
+              {currentStep === 3 ? 'Submit' : 'Next'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* ─── Shop Type Picker ─────────────────────────────── */}
       <Modal visible={showShopTypePicker} animationType="slide" transparent>
