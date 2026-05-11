@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -15,6 +16,7 @@ const MENU_ITEMS = [
     icon: 'person-circle-outline',
     type: 'profile',
     image: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop', // Fallback if local image not found
+    route: '/pages/profile' as const,
   },
   {
     id: 'payment',
@@ -23,6 +25,7 @@ const MENU_ITEMS = [
     icon: 'wallet-outline',
     gradient: ['#6366f1', '#4f46e5'] as const,
     stats: '12 Transactions',
+    route: '/pages/payment' as const,
   },
   {
     id: 'support',
@@ -30,11 +33,13 @@ const MENU_ITEMS = [
     subtitle: 'Get instant help from our team',
     icon: 'chatbubble-ellipses-outline',
     gradient: ['#ec4899', '#db2777'] as const,
+    route: '/pages/support' as const,
   },
 ];
 
 export default function MenuScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const renderCard = (item: typeof MENU_ITEMS[0]) => {
     if (item.type === 'profile') {
@@ -43,6 +48,7 @@ export default function MenuScreen() {
           key={item.id}
           className="bg-white rounded-[32px] p-6 mb-4 shadow-sm border border-slate-100 flex-row items-center"
           activeOpacity={0.7}
+          onPress={() => item.route && router.push(item.route)}
         >
           <Image
             source={{ uri: item.image }}
@@ -70,6 +76,7 @@ export default function MenuScreen() {
         key={item.id}
         activeOpacity={0.8}
         className="mb-4"
+        onPress={() => item.route && router.push(item.route)}
       >
         <LinearGradient
           colors={item.gradient || ['#f8fafc', '#f1f5f9']}
@@ -100,22 +107,44 @@ export default function MenuScreen() {
 
   return (
     <View className="flex-1 bg-[#f8fafc]">
+      {/* Fixed Header */}
+      <LinearGradient
+        colors={['#1A3F75', '#F3F6F8']}
+        style={{ paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 20, paddingBottom: 16, paddingHorizontal: 20 }}
+      >
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center flex-1">
+            <TouchableOpacity onPress={() => router.back()} className='bg-white/60 p-1.5 rounded-full'>
+              <Ionicons name="arrow-back" size={24} color="#1E293B" />
+            </TouchableOpacity>
+            <View className="ml-4">
+              <Text className="text-[#1E293B] text-xl font-bold tracking-wider">Menu</Text>
+              <Text className="text-gray-700 text-sm opacity-90">Configure your workspace</Text>
+            </View>
+          </View>
+          {/* <View className="flex-row gap-3">
+            <TouchableOpacity className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm">
+              <Ionicons name="settings-outline" size={20} color="#1E293B" />
+            </TouchableOpacity>
+          </View> */}
+        </View>
+      </LinearGradient>
+
       <ScrollView
         className="flex-1 px-4 pt-4"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        <View className="mb-6 mt-4">
-          <Text className="text-3xl font-bold text-slate-900">Menu</Text>
-          <Text className="text-slate-500">Configure your workspace</Text>
-        </View>
 
         {MENU_ITEMS.map(renderCard)}
 
         <View className="mt-6 mb-4">
           <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-3">Preferences</Text>
 
-          <TouchableOpacity className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm">
+          <TouchableOpacity
+            className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm"
+            onPress={() => router.push('/pages/notifucation')}
+          >
             <View className="bg-indigo-50 p-2 rounded-xl mr-3">
               <Ionicons name="notifications-outline" size={20} color="#6366f1" />
             </View>

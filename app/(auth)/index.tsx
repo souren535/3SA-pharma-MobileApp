@@ -7,12 +7,18 @@ import {
   Platform,
   ScrollView,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Svg, { Path } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../context/AuhthContext";
+import { useRouter } from "expo-router";
+import { StatusModal } from "../../components/ui/status-modal";
+import { StatusBar } from "expo-status-bar";
 
 const { width } = Dimensions.get("window");
 
@@ -20,9 +26,49 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [modalConfig, setModalConfig] = useState({
+    visible: false,
+    type: "error" as "error" | "success" | "info",
+    title: "",
+    message: "",
+  });
 
+  const { login } = useAuth();
+  const router = useRouter();
+
+  const showModal = (
+    type: "error" | "success" | "info",
+    title: string,
+    message: string,
+  ) => {
+    setModalConfig({ visible: true, type, title, message });
+  };
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      showModal("error", "Error", "Please enter email and password");
+      return;
+    }
+    setLoading(true);
+    try {
+      console.log("email", email);
+      console.log("password", password);
+      await login(email, password);
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      showModal(
+        "error",
+        "Login Failed",
+        error.response?.data?.message || "Invalid credentials",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
+      <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -157,9 +203,21 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity className="w-full bg-[#1A3F75] rounded-xl py-4 mt-6 shadow-lg shadow-blue-900/20 active:scale-95 transition-all duration-200">
+            <TouchableOpacity
+              onPress={handleLogin}
+              disabled={loading}
+              className="w-full bg-[#1A3F75] rounded-xl py-4 mt-6 shadow-lg shadow-blue-900/20 active:scale-95 transition-all duration-200"
+            >
               <Text className="text-white text-center text-lg font-semibold">
-                Login
+                {loading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                ) : (
+                  "Login"
+                )}
               </Text>
             </TouchableOpacity>
           </View>
@@ -176,6 +234,13 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <StatusModal
+        visible={modalConfig.visible}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 }

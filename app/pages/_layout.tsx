@@ -5,6 +5,11 @@ export default function PagesLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="storeInfo" />
       <Stack.Screen name="orderCreate" />
+      <Stack.Screen name="orderDetails" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="notifucation" />
+      <Stack.Screen name="payment" />
+      <Stack.Screen name="profile" />
     </Stack>
   );
 }

@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,9 @@ import LottieView from "lottie-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { Image } from "expo-image";
+import API from "../../utils/api";
+import { useShops } from "../../context/ShopContext";
+import { useEffect } from "react";
 
 const { width } = Dimensions.get("window");
 
@@ -37,6 +41,36 @@ export default function HomeScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
+  const [attendanceType, setAttendanceType] = useState<'login' | 'logout'>('login');
+  const [submitting, setSubmitting] = useState(false);
+  const lottieRef = useRef<LottieView>(null);
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const { shops, fetchShops } = useShops();
+
+  useEffect(() => {
+    fetchShops();
+  }, []);
+
+  React.useEffect(() => {
+    if (!isWorking) {
+      // Bounce the button one time
+      Animated.sequence([
+        Animated.spring(bounceAnim, {
+          toValue: 1.2,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.spring(bounceAnim, {
+          toValue: 1,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Play lottie animation one time
+      lottieRef.current?.play();
+    }
+  }, []);
 
   // Custom popup modal states
   const [popupVisible, setPopupVisible] = useState(false);
@@ -61,15 +95,20 @@ export default function HomeScreen() {
 
   const handlePowerPress = () => {
     if (isWorking) {
-      // Stop work flow
+      // Stop work flow — open modal for logout selfie
       showPopup(
         "Stop Working",
         "Are you sure you want to stop your work day?",
         "confirm",
-        () => {
-          setIsWorking(false);
+        async () => {
           setPopupVisible(false);
-          showPopup("Work Ended", "Your work day has been stopped successfully.", "info");
+          setAttendanceType('logout');
+          setSelfieUri(null);
+          // Request camera permission for logout selfie
+          if (!cameraPermission?.granted) {
+            await requestCameraPermission();
+          }
+          setShowAttendanceModal(true);
         },
       );
     } else {
@@ -80,6 +119,7 @@ export default function HomeScreen() {
         "confirm",
         async () => {
           setPopupVisible(false);
+          setAttendanceType('login');
           // Request permissions
           if (!cameraPermission?.granted) {
             await requestCameraPermission();
@@ -118,25 +158,72 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAttendanceSubmit = () => {
+  const handleAttendanceSubmit = async () => {
     if (!selfieUri) {
       showPopup("Required", "Please take a selfie first.", "info");
       return;
     }
-    if (!location) {
+    if (attendanceType === 'login' && !location) {
       showPopup("Required", "Location not captured yet.", "info");
       return;
     }
-    console.log("Attendance submitted:", { selfieUri, location });
-    setIsWorking(true);
-    setSelfieUri(null);
-    setLocation(null);
-    setShowAttendanceModal(false);
-    showPopup("Success", "Attendance marked successfully! Your work day has started.", "info");
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('face_image', {
+        uri: selfieUri,
+        type: 'image/jpeg',
+        name: 'selfie.jpg',
+      } as any);
+
+      if (attendanceType === 'login') {
+        // LOGIN API
+        formData.append('latitude', String(location!.lat));
+        formData.append('longitude', String(location!.lng));
+
+        await API.post('/attendance/login', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        setIsWorking(true);
+        setSelfieUri(null);
+        setLocation(null);
+        setShowAttendanceModal(false);
+        showPopup("Success", "Attendance marked successfully! Your work day has started.", "info");
+      } else {
+        // LOGOUT API
+        const fallbackShopId = shops.length > 0 ? shops[0].id : '1';
+        formData.append('last_shop_id', fallbackShopId); 
+
+        await API.post('/attendance/logout', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        setIsWorking(false);
+        setSelfieUri(null);
+        setLocation(null);
+        setShowAttendanceModal(false);
+        // Play red lottie animation once
+        setTimeout(() => {
+          lottieRef.current?.play();
+        }, 300);
+        showPopup("Work Ended", "Your work day has been stopped successfully.", "info");
+      }
+    } catch (error: any) {
+      console.log("Attendance error:", error.response?.data || error.message);
+      showPopup(
+        "Error",
+        error.response?.data?.message || `Attendance ${attendanceType} failed. Please try again.`,
+        "info"
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Dynamic colors based on work status
-  const powerIconColor = isWorking ? "#DC2626" : "#059669";
+  const powerIconColor = isWorking ? "#059669" : "#DC2626";
 
   return (
     <View className="flex-1 bg-[#F1F5F9]">
@@ -182,27 +269,36 @@ export default function HomeScreen() {
               Souren Khan
             </Text>
             <View className="items-center relative">
-              <TouchableOpacity
-                onPress={handlePowerPress}
-                className="w-[40px] h-[40px] rounded-full bg-white justify-center items-center z-10"
-              >
-                <MaterialIcons
-                  name="power-settings-new"
-                  size={24}
-                  color={powerIconColor}
-                />
-              </TouchableOpacity>
+              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+                <TouchableOpacity
+                  onPress={handlePowerPress}
+                  className="w-[40px] h-[40px] rounded-full bg-white justify-center items-center z-10"
+                >
+                  <MaterialIcons
+                    name="power-settings-new"
+                    size={24}
+                    color={powerIconColor}
+                  />
+                </TouchableOpacity>
+              </Animated.View>
               <LottieView
+                key={`lottie-${isWorking}`}
+                ref={lottieRef}
                 source={require("@/assets/animation/blink-animation.json")}
-                autoPlay
-                loop
+                autoPlay={true}
+                loop={isWorking}
+                colorFilters={[
+                  {
+                    keypath: "**",
+                    color: isWorking ? "#059669" : "#DC2626",
+                  },
+                ]}
                 style={{
                   width: 100,
                   height: 100,
                   position: "absolute",
                   bottom: -30,
                   right: -30,
-                  tintColor: isWorking ? "#DC2626" : undefined,
                 }}
               />
             </View>
@@ -427,7 +523,7 @@ export default function HomeScreen() {
             {/* Modal Header */}
             <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
               <Text className="text-lg font-bold text-gray-800">
-                Mark Attendance
+                {attendanceType === 'login' ? 'Mark Attendance' : 'End Work Day'}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -489,57 +585,67 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              {/* Location Section */}
-              <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
-                Location (Auto-Captured)
-              </Text>
-              <View className="bg-gray-50 rounded-xl p-4 mb-5 border border-gray-100">
-                {locationLoading ? (
-                  <View className="flex-row items-center">
-                    <ActivityIndicator size="small" color="#1A3F75" />
-                    <Text className="ml-3 text-gray-500 text-sm">
-                      Fetching location...
-                    </Text>
-                  </View>
-                ) : location ? (
-                  <View>
-                    <View className="flex-row items-center mb-2">
-                      <MaterialIcons
-                        name="my-location"
-                        size={18}
-                        color="#059669"
-                      />
-                      <Text className="ml-2 text-green-700 font-bold text-sm">
-                        Location Captured ✓
-                      </Text>
-                    </View>
-                    <Text className="text-gray-600 text-xs">
-                      Lat: {location.lat.toFixed(6)}
-                    </Text>
-                    <Text className="text-gray-600 text-xs mt-1">
-                      Lng: {location.lng.toFixed(6)}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text className="text-gray-400 text-sm">
-                    Location not available
+              {/* Location Section — only for login */}
+              {attendanceType === 'login' && (
+                <>
+                  <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
+                    Location (Auto-Captured)
                   </Text>
-                )}
-              </View>
+                  <View className="bg-gray-50 rounded-xl p-4 mb-5 border border-gray-100">
+                    {locationLoading ? (
+                      <View className="flex-row items-center">
+                        <ActivityIndicator size="small" color="#1A3F75" />
+                        <Text className="ml-3 text-gray-500 text-sm">
+                          Fetching location...
+                        </Text>
+                      </View>
+                    ) : location ? (
+                      <View>
+                        <View className="flex-row items-center mb-2">
+                          <MaterialIcons
+                            name="my-location"
+                            size={18}
+                            color="#059669"
+                          />
+                          <Text className="ml-2 text-green-700 font-bold text-sm">
+                            Location Captured ✓
+                          </Text>
+                        </View>
+                        <Text className="text-gray-600 text-xs">
+                          Lat: {location.lat.toFixed(6)}
+                        </Text>
+                        <Text className="text-gray-600 text-xs mt-1">
+                          Lng: {location.lng.toFixed(6)}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text className="text-gray-400 text-sm">
+                        Location not available
+                      </Text>
+                    )}
+                  </View>
+                </>
+              )}
             </ScrollView>
 
             {/* Submit Button */}
             <View className="px-5 pt-3">
               <TouchableOpacity
                 className={`py-4 rounded-2xl items-center shadow-md ${
-                  selfieUri && location ? "bg-[#1A3F75]" : "bg-gray-300"
+                  attendanceType === 'login'
+                    ? (selfieUri && location ? 'bg-[#1A3F75]' : 'bg-gray-300')
+                    : (selfieUri ? 'bg-[#DC2626]' : 'bg-gray-300')
                 }`}
                 onPress={handleAttendanceSubmit}
-                disabled={!selfieUri || !location}
+                disabled={submitting || !selfieUri || (attendanceType === 'login' && !location)}
               >
-                <Text className="text-white text-[15px] font-bold">
-                  Submit Attendance
-                </Text>
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text className="text-white text-[15px] font-bold">
+                    {attendanceType === 'login' ? 'Submit Attendance' : 'End Work Day'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

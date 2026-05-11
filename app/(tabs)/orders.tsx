@@ -35,7 +35,7 @@ export default function OrdersScreen() {
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center flex-1">
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.back()} className='bg-white/60 p-1.5 rounded-full'>
               <Ionicons name="arrow-back" size={24} color="#1E293B" />
             </TouchableOpacity>
             <View className="ml-4">
@@ -88,7 +88,14 @@ export default function OrdersScreen() {
       {/* Scrollable Order List */}
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
         {orders.map((item) => (
-          <TouchableOpacity key={item.id} className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center">
+          <TouchableOpacity
+            key={item.id}
+            className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
+            onPress={() => router.push({
+              pathname: '/pages/orderDetails',
+              params: item
+            })}
+          >
             {/* Circle Icon */}
             <View className={`w-12 h-12 rounded-full items-center justify-center ${item.isOrder ? 'bg-[#FF7676]' : 'bg-[#47B8A0]'}`}>
               <Text className="text-white text-xl font-bold">{item.type.charAt(0)}</Text>

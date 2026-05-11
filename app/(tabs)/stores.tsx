@@ -1,33 +1,86 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image } from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useShops } from '../../context/ShopContext';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { ActivityIndicator, Modal } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
-const dates = [
-  { day: 'WED', date: '17', active: false },
-  { day: 'THU', date: '18', active: false },
-  { day: 'FRI', date: '19', active: false },
-  { day: 'SAT', date: '20', active: true },
-  { day: 'SUN', date: '21', active: false },
-  { day: 'MON', date: '22', active: false },
-];
+// Helper to get local YYYY-MM-DD string
+const getLocalDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
-const stores = [
-  { id: 1, name: 'Krishna Medical Stores', category: 'Medicine Shop', contact: '+91 9876543210', image: 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop' },
-  { id: 2, name: 'Radha Rakomari Store', category: 'Grocery Shop', contact: '+91 9123456780', image: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?q=80&w=200&auto=format&fit=crop' },
-  { id: 3, name: 'Narmada Medical', category: 'Medicine Shop', contact: '+91 8765432109', image: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?q=80&w=200&auto=format&fit=crop' },
-  { id: 4, name: 'Sri Hari Medicine Center', category: 'Pharmacy', contact: '+91 7654321098', image: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=200&auto=format&fit=crop' },
-  { id: 5, name: 'MedPlus Pharmacy', category: 'Pharmacy', contact: '+91 6543210987', image: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?q=80&w=200&auto=format&fit=crop' },
-  { id: 6, name: 'Apollo Medical Shop', category: 'Medicine Shop', contact: '+91 5432109876', image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=200&auto=format&fit=crop' },
-  { id: 7, name: 'Wellness Pharma Hub', category: 'Pharmacy', contact: '+91 4321098765', image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?q=80&w=200&auto=format&fit=crop' },
-  { id: 8, name: 'Sanjivani Drug Store', category: 'Medicine Shop', contact: '+91 3210987654', image: 'https://images.unsplash.com/photo-1556767576-5ec41e3239ea?q=80&w=200&auto=format&fit=crop' },
+// Helper to get dates for a given month and year
+const getDatesForMonth = (monthIndex: number, year: number) => {
+  const dates = [];
+  const numDays = new Date(year, monthIndex + 1, 0).getDate();
+  
+  for (let i = 1; i <= numDays; i++) {
+    const date = new Date(year, monthIndex, i);
+    dates.push({
+      day: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+      date: i.toString(),
+      fullDate: getLocalDateString(date),
+    });
+  }
+  return dates;
+};
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 export default function StoresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { shops, fetchShops, isLoading } = useShops();
+  
+  const now = new Date();
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString(now));
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const monthDates = useMemo(() => getDatesForMonth(selectedMonth, selectedYear), [selectedMonth, selectedYear]);
+
+  // Reset to today whenever the tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      const todayMonth = today.getMonth();
+      const todayYear = today.getFullYear();
+      const todayDay = today.getDate();
+
+      setSelectedDate(todayStr);
+      setSelectedMonth(todayMonth);
+      setSelectedYear(todayYear);
+
+      // Auto-scroll to today
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ x: (todayDay - 1) * 73, animated: true });
+      }, 500);
+
+      fetchShops();
+    }, [fetchShops])
+  );
+
+  // Filter shops by selected date
+  const filteredShops = useMemo(() => {
+    return shops.filter(shop => {
+      const shopDate = shop.created_at.split('T')[0];
+      return shopDate === selectedDate;
+    });
+  }, [shops, selectedDate]);
 
   return (
     <View style={styles.container}>
@@ -38,7 +91,7 @@ export default function StoresScreen() {
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center flex-1">
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.back()} className='bg-white/60 p-1.5 rounded-full'>
               <Ionicons name="arrow-back" size={24} color="#1E293B" />
             </TouchableOpacity>
             <View className="ml-4">
@@ -57,62 +110,108 @@ export default function StoresScreen() {
       {/* Fixed Date Filter */}
       <View className="bg-[#F3F6F8]">
         <View className="flex-row justify-end px-5 mt-3">
-          <TouchableOpacity className="flex-row items-center bg-[#1A3F75] px-3 py-1.5 rounded-lg shadow-sm mr-2">
-            <Text className="text-white font-medium text-xs mr-1">March</Text>
-            <Ionicons name="caret-down" size={12} color="#fff" />
+          <TouchableOpacity 
+            onPress={() => setShowMonthPicker(true)}
+            className="flex-row items-center bg-[#1A3F75] px-3 py-1.5 rounded-lg shadow-sm mr-2"
+          >
+            <Text className="text-white font-medium text-xs mr-1">{MONTHS[selectedMonth]}</Text>
+            <Ionicons name="calendar-outline" size={12} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity className="flex-row items-center bg-[#1A3F75] px-3 py-1.5 rounded-lg shadow-sm">
-            <Text className="text-white font-medium text-xs mr-1">2026</Text>
-            <Ionicons name="caret-down" size={12} color="#fff" />
-          </TouchableOpacity>
+          <View className="flex-row items-center bg-[#1A3F75] px-3 py-1.5 rounded-lg shadow-sm">
+            <Text className="text-white font-medium text-xs mr-1">{selectedYear}</Text>
+          </View>
         </View>
 
         {/* Fixed Date Strip */}
         <View className="mt-3 mb-3 flex-row">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-            {dates.map((d, i) => (
-              <TouchableOpacity
-                key={i}
-                className={`items-center justify-center w-[60px] h-[76px] mr-3 rounded-[18px] ${
-                  d.active ? 'bg-[#4C73B6] shadow-md' : 'bg-white shadow-sm'
-                }`}
-              >
-                <Text className={`text-[11px] font-bold ${d.active ? 'text-white' : 'text-gray-400'}`}>{d.day}</Text>
-                <Text className={`text-[22px] font-bold mt-1 ${d.active ? 'text-white' : 'text-gray-800'}`}>{d.date}</Text>
-              </TouchableOpacity>
-            ))}
+          <ScrollView 
+            ref={scrollRef}
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={{ paddingHorizontal: 20 }}
+          >
+            {monthDates.map((d, i) => {
+              const isActive = d.fullDate === selectedDate;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => setSelectedDate(d.fullDate)}
+                  className={`items-center justify-center w-[60px] h-[76px] mr-3 rounded-[18px] ${
+                    isActive ? 'bg-[#4C73B6] shadow-md' : 'bg-white shadow-sm'
+                  }`}
+                >
+                  <Text className={`text-[11px] font-bold ${isActive ? 'text-white' : 'text-gray-400'}`}>{d.day}</Text>
+                  <Text className={`text-[22px] font-bold mt-1 ${isActive ? 'text-white' : 'text-gray-800'}`}>{d.date}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       </View>
 
       {/* Scrollable Store List */}
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
-        {stores.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            className="bg-white mx-4 mb-3 p-3 rounded-xl shadow-sm flex-row items-center"
-            onPress={() => router.push({ pathname: '/pages/storeInfo', params: { storeId: item.id, storeName: item.name, storeCategory: item.category, storeContact: item.contact, storeImage: item.image } })}
-          >
-            {/* Store Image */}
-            <Image
-              source={{ uri: item.image }}
-              className="w-[70px] h-[70px] rounded-xl bg-gray-200"
-              resizeMode="cover"
-            />
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center py-20">
+            <ActivityIndicator size="large" color="#1A3F75" />
+            <Text className="text-gray-500 mt-4 font-medium tracking-wide">Loading Stores...</Text>
+          </View>
+        ) : filteredShops.length > 0 ? (
+          filteredShops.map((item) => {
+            const baseUrl = process.env.EXPO_PUBLIC_BASE_URL || '';
+            const storeImageUrl = item.images && item.images.length > 0 
+              ? (item.images[0].image_url.startsWith('http') ? item.images[0].image_url : `${baseUrl}${item.images[0].image_url}`)
+              : 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
 
-            {/* Content */}
-            <View className="flex-1 ml-4 justify-center">
-              <Text className="text-[15px] font-bold text-gray-800">{item.name}</Text>
-              <Text className="text-xs text-gray-600 mt-1">Category : {item.category}</Text>
-              <Text className="text-xs text-gray-600 mt-0.5">Contact : {item.contact}</Text>
+            return (
+              <TouchableOpacity
+                key={item.id}
+                className="bg-white mx-4 mb-3 p-3 rounded-xl shadow-sm flex-row items-center border border-gray-50"
+                onPress={() => router.push({ 
+                  pathname: '/pages/storeInfo', 
+                  params: { 
+                    storeId: item.id, 
+                    storeName: item.shop_name, 
+                    storeCategory: item.category, 
+                    storeContact: item.contact, 
+                    storeImage: storeImageUrl 
+                  } 
+                })}
+              >
+                <Image
+                  source={{ uri: storeImageUrl }}
+                  className="w-[74px] h-[74px] rounded-xl bg-gray-100"
+                  resizeMode="cover"
+                />
+                <View className="flex-1 ml-4 justify-center">
+                  <Text className="text-[15px] font-bold text-gray-800" numberOfLines={1}>{item.shop_name}</Text>
+                  <View className="flex-row items-center mt-1.5">
+                    <MaterialIcons name="local-pharmacy" size={14} color="#64748B" />
+                    <Text className="text-[11px] text-[#64748B] ml-1.5 font-medium">{item.category}</Text>
+                    <Text className="text-[10px] text-gray-400 mx-2">|</Text>
+                    <Ionicons name="map-outline" size={12} color="#64748B" />
+                    <Text className="text-[11px] text-[#64748B] ml-1 font-medium" numberOfLines={1}>{item.route.name}</Text>
+                  </View>
+                  <View className="flex-row items-center mt-1">
+                    <Feather name="phone" size={12} color="#64748B" />
+                    <Text className="text-[11px] text-[#64748B] ml-1.5 font-medium">{item.contact}</Text>
+                  </View>
+                </View>
+                <View className="ml-2 justify-center">
+                  <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          <View className="flex-1 items-center justify-center py-20 px-10">
+            <View className="w-20 h-20 bg-gray-100 rounded-full items-center justify-center mb-4">
+              <MaterialIcons name="storefront" size={40} color="#94A3B8" />
             </View>
-
-            {/* Arrow */}
-            <View className="ml-2 justify-center">
-              <Ionicons name="chevron-forward" size={18} color="#A0AEC0" />
-            </View>
-          </TouchableOpacity>
-        ))}
+            <Text className="text-gray-800 text-lg font-bold mb-1">No Stores Found</Text>
+            <Text className="text-gray-500 text-center">There are no stores listed for this region or date yet.</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* FAB - Navigate to Create Store page */}
@@ -122,6 +221,45 @@ export default function StoresScreen() {
       >
         <Feather name="plus" size={26} color="white" />
       </TouchableOpacity>
+
+      {/* Month Picker Modal */}
+      <Modal visible={showMonthPicker} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 20 }}>
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-xl font-bold text-[#1A3F75]">Select Month</Text>
+              <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
+                <Ionicons name="close-circle" size={30} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+              {MONTHS.map((month, index) => (
+                <TouchableOpacity
+                  key={month}
+                  className={`p-4 rounded-2xl mb-3 flex-row justify-between items-center ${selectedMonth === index ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                  onPress={() => {
+                    setSelectedMonth(index);
+                    const isCurrentMonth = index === now.getMonth() && selectedYear === now.getFullYear();
+                    const targetDate = isCurrentMonth ? now.getDate() : 1;
+                    const dateObj = new Date(selectedYear, index, targetDate);
+                    setSelectedDate(getLocalDateString(dateObj));
+                    setShowMonthPicker(false);
+                    // Scroll to the selected date
+                    setTimeout(() => {
+                      scrollRef.current?.scrollTo({ x: (targetDate - 1) * 73, animated: true });
+                    }, 300);
+                  }}
+                >
+                  <Text className={`text-lg ${selectedMonth === index ? 'text-[#1A3F75] font-bold' : 'text-gray-600 font-medium'}`}>
+                    {month}
+                  </Text>
+                  {selectedMonth === index && <Ionicons name="checkmark-circle" size={24} color="#1A3F75" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

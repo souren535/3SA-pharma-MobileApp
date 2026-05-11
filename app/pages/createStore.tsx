@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { useShops } from '../../context/ShopContext';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 
@@ -26,7 +28,7 @@ const INDIAN_STATES = [
 const InputField = ({
   label, value, onChangeText, placeholder, required = false,
   keyboardType = 'default' as any, multiline = false, maxLength, prefix,
-  editable = true, loading = false,
+  editable = true, loading = false, rightElement,
 }: any) => (
   <View className="mb-4">
     <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
@@ -46,12 +48,17 @@ const InputField = ({
         multiline={multiline}
         maxLength={maxLength}
         editable={editable}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
+        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'characters'}
         style={multiline ? { minHeight: 60, textAlignVertical: 'top' } : undefined}
       />
       {loading && (
         <View className="pr-3.5">
           <ActivityIndicator size="small" color="#1A3F75" />
+        </View>
+      )}
+      {rightElement && (
+        <View className="pr-2">
+          {rightElement}
         </View>
       )}
     </View>
@@ -90,7 +97,29 @@ const ReviewItem = ({ label, value }: { label: string; value: string }) => (
 export default function CreateStoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { createShop, validateGST } = useShops();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidatingGST, setIsValidatingGST] = useState(false);
+
+  // Location state
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showPopup('Permission Denied', 'Permission to access location was denied');
+        return;
+      }
+
+      let loc = await Location.getCurrentPositionAsync({});
+      setLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude
+      });
+    })();
+  }, []);
 
   // Step 1 – Personal
   const [storeImages, setStoreImages] = useState<string[]>([]);
@@ -140,6 +169,9 @@ export default function CreateStoreScreen() {
   const [fssaiLicense, setFssaiLicense] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
+  const [category, setCategory] = useState('medicine'); // Default or selectable
+  const [routeId, setRouteId] = useState('1'); // Default or selectable
+  const [areaId, setAreaId] = useState('1'); // Default or selectable
 
   // Image source picker
   const [showImageSourceModal, setShowImageSourceModal] = useState(false);
@@ -219,16 +251,77 @@ export default function CreateStoreScreen() {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleSubmit = () => {
-    const payload = {
-      images: storeImages, shopName, ownerName,
-      contact: `+91 ${contact}`, email, shopType,
-      address1, address2, city, district, pin, state,
-      licenseNo, fssaiLicense, gstNumber, panNumber,
-    };
-    console.log('Create Store Payload:', payload);
-    showPopup('Success', 'Store created successfully!');
-    // Navigate back after popup is dismissed — handled in popup OK
+  const handleValidateGST = async () => {
+    if (!gstNumber || gstNumber.length !== 15) {
+      showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.');
+      return;
+    }
+    setIsValidatingGST(true);
+    try {
+      const data = await validateGST(gstNumber);
+      if (data && data.taxpayer_name) {
+        setShopName(data.taxpayer_name);
+        showPopup('GST Verified', `GST details verified for ${data.taxpayer_name}`);
+      } else {
+        showPopup('GST Verified', 'GST number is valid.');
+      }
+    } catch (error: any) {
+      showPopup('Validation Failed', error.response?.data?.message || 'Could not validate GST number.');
+    } finally {
+      setIsValidatingGST(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!location) {
+      showPopup('Location Required', 'Waiting for location capture...');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+
+      // Append images
+      storeImages.forEach((uri, index) => {
+        const fileName = uri.split('/').pop() || `image_${index}.jpg`;
+        formData.append('images[]', {
+          uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+          name: fileName,
+          type: 'image/jpeg',
+        } as any);
+      });
+
+      // Basic info
+      formData.append('shop_name', shopName);
+      formData.append('owner_name', ownerName);
+      formData.append('contact', contact);
+      formData.append('email', email);
+      formData.append('shop_type', shopType);
+      formData.append('category', category);
+
+      // Address info
+      const fullAddress = `${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${district}, ${state} - ${pin}`;
+      formData.append('address', fullAddress);
+      formData.append('latitude', String(location.latitude));
+      formData.append('longitude', String(location.longitude));
+
+      // Legal info
+      formData.append('license_no', licenseNo);
+      formData.append('fassai_license', fssaiLicense);
+      formData.append('gst_number', gstNumber);
+      formData.append('pan_number', panNumber);
+      formData.append('route_id', routeId);
+      formData.append('area_id', areaId);
+
+      await createShop(formData);
+      showPopup('Success', 'Store created successfully!');
+    } catch (error: any) {
+      console.error('Submit error:', error.response?.data || error.message);
+      showPopup('Error', error.response?.data?.message || 'Failed to create store. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 
@@ -289,7 +382,23 @@ export default function CreateStoreScreen() {
     <>
       <InputField label="License No" value={licenseNo} onChangeText={setLicenseNo} placeholder="Enter license number" />
       <InputField label="FSSAI License" value={fssaiLicense} onChangeText={setFssaiLicense} placeholder="Enter FSSAI license" />
-      <InputField label="GST Number" value={gstNumber} onChangeText={(t: string) => setGstNumber(t.toUpperCase())} placeholder="Enter GST number" maxLength={15} />
+      <InputField
+        label="GST Number"
+        value={gstNumber}
+        onChangeText={(t: string) => setGstNumber(t.toUpperCase())}
+        placeholder="Enter GST number"
+        maxLength={15}
+        loading={isValidatingGST}
+        rightElement={
+          <TouchableOpacity
+            className="bg-[#1A3F75] px-3 py-1.5 rounded-lg mr-1.5"
+            onPress={handleValidateGST}
+            disabled={isValidatingGST}
+          >
+            <Text className="text-white text-[10px] font-bold">VALIDATE</Text>
+          </TouchableOpacity>
+        }
+      />
       <InputField label="PAN Number" value={panNumber} onChangeText={(t: string) => setPanNumber(t.toUpperCase())} placeholder="Enter PAN number" maxLength={10} />
     </>
   );
@@ -402,7 +511,7 @@ export default function CreateStoreScreen() {
                       {step}
                     </Text>
                   </TouchableOpacity>
-                  
+
                   {/* Connector */}
                   {index < STEPS.length - 1 && (
                     <View className="justify-center mr-2">
@@ -449,10 +558,15 @@ export default function CreateStoreScreen() {
           <TouchableOpacity
             className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
             onPress={currentStep === 3 ? handleSubmit : handleNext}
+            disabled={isSubmitting}
           >
-            <Text className="text-white font-bold text-[14px]">
-              {currentStep === 3 ? 'Submit' : 'Next'}
-            </Text>
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text className="text-white font-bold text-[14px]">
+                {currentStep === 3 ? 'Submit' : 'Next'}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

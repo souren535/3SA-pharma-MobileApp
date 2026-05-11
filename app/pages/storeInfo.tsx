@@ -125,7 +125,7 @@ export default function StoreInfoScreen() {
             <Text className="text-white text-lg font-bold">Financial Summary</Text>
             <Ionicons name="stats-chart" size={20} color="white" />
           </LinearGradient>
-          
+
           <View className="p-4 flex-row flex-wrap">
             <View className="w-[50%] p-2">
               <Text className="text-xs text-gray-500 mb-1">Total Orders</Text>
@@ -149,7 +149,7 @@ export default function StoreInfoScreen() {
         {/* Filter Bar */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="font-bold text-gray-800 text-base">Transactions</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             className="flex-row items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200"
             onPress={() => setShowFilterPopup(true)}
           >
@@ -258,7 +258,7 @@ export default function StoreInfoScreen() {
         {/* Top Bar */}
         <View className="flex-row justify-between items-center mb-4">
           <View className="flex-row items-center flex-1">
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity className='bg-white/20 rounded-full p-2' onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
             <View className="ml-4 flex-1">
@@ -308,7 +308,7 @@ export default function StoreInfoScreen() {
 
       {/* FAB Options (Only for Orders) */}
       {activeTab === 'Orders' && (
-        <Animated.View 
+        <Animated.View
           className="absolute bottom-[100px] right-6 items-end gap-3"
           style={{
             transform: [{ translateY: fabMenuTranslateY }],
@@ -374,7 +374,7 @@ export default function StoreInfoScreen() {
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            
+
             <View className="mb-4">
               <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">Date</Text>
               <TextInput
@@ -473,7 +473,7 @@ export default function StoreInfoScreen() {
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            
+
             {['All', 'Credit', 'Debit'].map((filter) => (
               <TouchableOpacity
                 key={filter}
@@ -501,7 +501,7 @@ export default function StoreInfoScreen() {
                 <Ionicons name="close-circle" size={24} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            
+
             <TextInput
               className="bg-gray-50 rounded-xl p-4 text-[14px] text-gray-800 border border-gray-200 mb-4"
               placeholder="Type your visit note here..."

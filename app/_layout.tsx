@@ -4,6 +4,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Lobster_400Regular } from "@expo-google-fonts/lobster";
 import { useEffect } from "react";
 import "../global.css";
+import { AuthProvider } from "../context/AuhthContext";
+import { ShopProvider } from "../context/ShopContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,12 +26,16 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="pages" options={{ headerShown: false }} />
-      </Stack>
+      <AuthProvider>
+        <ShopProvider>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="pages" options={{ headerShown: false }} />
+          </Stack>
+        </ShopProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
