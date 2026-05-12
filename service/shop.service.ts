@@ -11,6 +11,9 @@ export const shopService = {
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      transformRequest: (data, headers) => {
+        return data; // Do not transform FormData
+      },
     });
     return data;
   },

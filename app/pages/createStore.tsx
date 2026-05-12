@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useShopStore, useRouteStore } from '../../store/store';
 import API from '../../utils/api';
+import LoadingScreen from '../../components/LoadingScreen';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 
@@ -808,6 +809,9 @@ export default function CreateStoreScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── Loading Screen ─────────────────────────────────── */}
+      <LoadingScreen visible={isSubmitting} message="Creating Store..." />
     </View>
   );
 }
