@@ -1,25 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Animated, ActivityIndicator } from 'react-native';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const storeOrders = [
-  { id: 1, type: 'Order', orderNo: 'ABC12345', billingDate: '04 APR 2026', amount: '+ Rs. 5700', isOrder: true },
-  { id: 2, type: 'Payment', date: '04 APR 2026', desc: 'Cash payment received', amount: '- Rs. 3000', isOrder: false },
-  { id: 3, type: 'Order', orderNo: 'ABC12346', billingDate: '10 APR 2026', amount: '+ Rs. 3200', isOrder: true },
-  { id: 4, type: 'Payment', date: '12 APR 2026', desc: 'UPI payment received', amount: '- Rs. 5700', isOrder: false },
-  { id: 5, type: 'Order', orderNo: 'ABC12347', billingDate: '15 APR 2026', amount: '+ Rs. 4100', isOrder: true },
-];
-
-const storeTransactions = [
-  { id: 1, date: '04 APR 2026', type: 'Credit', amount: '+ Rs. 5700', desc: 'Order #ABC12345', balance: 'Rs. 5700' },
-  { id: 2, date: '06 APR 2026', type: 'Debit', amount: '- Rs. 3000', desc: 'Cash Payment', balance: 'Rs. 2700' },
-  { id: 3, date: '10 APR 2026', type: 'Credit', amount: '+ Rs. 3200', desc: 'Order #ABC12346', balance: 'Rs. 5900' },
-  { id: 4, date: '12 APR 2026', type: 'Debit', amount: '- Rs. 5700', desc: 'UPI Payment', balance: 'Rs. 200' },
-  { id: 5, date: '15 APR 2026', type: 'Credit', amount: '+ Rs. 4100', desc: 'Order #ABC12347', balance: 'Rs. 4300' },
-];
+import { useStoreDetailStore, useOrderStore, useLedgerStore, IMAGE_BASE_URL } from '../../store/store';
 
 type TabName = 'Orders' | 'Transaction' | 'Info';
 
@@ -27,8 +12,23 @@ export default function StoreInfoScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const storeId = params.storeId as string;
   const [activeTab, setActiveTab] = useState<TabName>('Orders');
   const [transactionFilter, setTransactionFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
+
+  // Zustand stores
+  const { shopDetail, fetchShopDetail, isLoading: detailLoading } = useStoreDetailStore();
+  const { shopOrders, fetchShopOrders, isLoading: ordersLoading } = useOrderStore();
+  const { ledger, summary, fetchLedger, collectPayment, isLoading: ledgerLoading, isSubmitting } = useLedgerStore();
+
+  // Fetch data on mount
+  useEffect(() => {
+    if (storeId) {
+      fetchShopDetail(storeId);
+      fetchShopOrders(storeId);
+      fetchLedger(storeId);
+    }
+  }, [storeId]);
 
   // FAB animation and states
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -77,176 +77,234 @@ export default function StoreInfoScreen() {
     setPopupVisible(true);
   };
 
-  const storeName = (params.storeName as string) || 'Krishna Medical Stores';
-  const storeCategory = (params.storeCategory as string) || 'Medicine Shop';
-  const storeContact = (params.storeContact as string) || '+91 9876543210';
-  const storeImage = (params.storeImage as string) || 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=400&auto=format&fit=crop';
+  const shopInfo = shopDetail?.shop || shopDetail; // Fallback if data is not nested
+  const storeName = shopInfo?.name || shopInfo?.shop_name || (params.storeName as string) || 'Loading...';
+  const storeCategory = shopInfo?.category || (params.storeCategory as string) || '';
+  const storeContact = shopInfo?.contact || (params.storeContact as string) || '';
+  const storeAddress = shopInfo?.address || (params.storeAddress as string) || 'Address not available';
+  
+  let storeImage = (params.storeImage as string) || 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=400&auto=format&fit=crop';
+  
+  // Try to find image in shopInfo or shopDetail
+  const images = shopInfo?.images || shopDetail?.images;
+  if (images && images.length > 0) {
+    const url = images[0].image_url;
+    storeImage = url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  } else if (storeImage && !storeImage.startsWith('http')) {
+    storeImage = `${IMAGE_BASE_URL}${storeImage.startsWith('/') ? '' : '/'}${storeImage}`;
+  }
 
   const tabs: TabName[] = ['Orders', 'Transaction', 'Info'];
 
-  const renderOrders = () => (
-    <>
-      {storeOrders.map((item) => (
-        <TouchableOpacity key={item.id} className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center">
-          <View className={`w-11 h-11 rounded-full items-center justify-center ${item.isOrder ? 'bg-[#FF7676]' : 'bg-[#47B8A0]'}`}>
-            <Text className="text-white text-lg font-bold">{item.type.charAt(0)}</Text>
-          </View>
-          <View className="flex-1 ml-3">
-            <View className="flex-row justify-between items-start">
-              <Text className="text-[14px] font-bold text-gray-800">{item.type}</Text>
-              <Text className={`text-xs font-bold ${item.isOrder ? 'text-[#FF4A4A]' : 'text-[#3AA58E]'}`}>{item.amount}</Text>
+  const renderOrders = () => {
+    if (ordersLoading) {
+      return <ActivityIndicator size="large" color="#1A3F75" style={{ marginTop: 50 }} />;
+    }
+    if (!Array.isArray(shopOrders) || shopOrders.length === 0) {
+      return <Text className="text-center text-gray-500 mt-10">No orders found.</Text>;
+    }
+    return (
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        {shopOrders.map((item) => (
+          <TouchableOpacity key={item.id} className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center">
+            <View className={`w-11 h-11 rounded-full items-center justify-center bg-[#FF7676]`}>
+              <Text className="text-white text-lg font-bold">O</Text>
             </View>
-            <Text className="text-xs text-gray-500 mt-0.5">
-              {item.isOrder ? `Order No : ${item.orderNo}` : `Date : ${item.date}`}
-            </Text>
-            {item.isOrder ? (
-              <Text className="text-xs text-gray-500 mt-0.5">Billing Date : {item.billingDate}</Text>
-            ) : (
-              <Text className="text-xs text-gray-500 mt-0.5">{item.desc}</Text>
-            )}
-          </View>
-          <Ionicons name="caret-forward" size={14} color="#A0AEC0" style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
-      ))}
-    </>
-  );
+            <View className="flex-1 ml-3">
+              <View className="flex-row justify-between items-start">
+                <Text className="text-[14px] font-bold text-gray-800">Order</Text>
+                <Text className={`text-xs font-bold text-[#FF4A4A]`}>Rs. {item.total_amount}</Text>
+              </View>
+              <Text className="text-xs text-gray-500 mt-0.5">Order No : {item.order_no}</Text>
+              <Text className="text-xs text-gray-500 mt-0.5">Billing Date : {new Date(item.billing_date || item.created_at).toLocaleDateString()}</Text>
+              <Text className="text-xs text-gray-500 mt-0.5">Status : {item.status}</Text>
+            </View>
+            <Ionicons name="caret-forward" size={14} color="#A0AEC0" style={{ marginLeft: 8 }} />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  };
 
   const renderTransactions = () => {
-    const filteredTransactions = storeTransactions.filter((t) => transactionFilter === 'All' || t.type === transactionFilter);
+    if (ledgerLoading) {
+      return <ActivityIndicator size="large" color="#1A3F75" style={{ marginTop: 50 }} />;
+    }
+
+    const safeLedger = Array.isArray(ledger) ? ledger : [];
+    const filteredTransactions = safeLedger.filter((t) => {
+      if (transactionFilter === 'All') return true;
+      if (transactionFilter === 'Credit') return t.type === 'Order';
+      if (transactionFilter === 'Debit') return t.type === 'Payment';
+      return false;
+    });
+
+    // Calculate Summary from Ledger or API Summary
+    const totalOrdersCount = safeLedger.filter(l => l.type === 'Order').length;
+    const totalAmount = summary?.total_orders_value ?? safeLedger.filter(l => l.type === 'Order').reduce((sum, item) => sum + parseFloat(item.amount as string || '0'), 0);
+    const totalPaid = summary?.total_received ?? safeLedger.filter(l => l.type === 'Payment').reduce((sum, item) => sum + parseFloat(item.amount as string || '0'), 0);
+    const outstanding = summary?.outstanding_due ?? (totalAmount - totalPaid);
 
     return (
-      <View className="mx-4">
-        {/* Improved Summary */}
-        <View className="bg-white rounded-2xl shadow-sm mb-5">
-          <LinearGradient
-            colors={['#1A3F75', '#2D5A9E']}
-            className="rounded-t-2xl p-4 flex-row justify-between items-center"
-          >
-            <Text className="text-white text-lg font-bold">Financial Summary</Text>
-            <Ionicons name="stats-chart" size={20} color="white" />
-          </LinearGradient>
+      <View className="flex-1">
+        {/* Fixed Summary Section */}
+        <View className="mx-4 mt-4">
+          {/* Summary */}
+          <View className="bg-white rounded-2xl shadow-sm mb-5 overflow-hidden">
+            <LinearGradient
+              colors={['#1A3F75', '#2D5A9E']}
+              className="p-3 flex-row justify-between items-center"
+            >
+              <Text className="text-white text-base font-bold">Financial Summary</Text>
+            </LinearGradient>
 
-          <View className="p-4 flex-row flex-wrap">
-            <View className="w-[50%] p-2">
-              <Text className="text-xs text-gray-500 mb-1">Total Orders</Text>
-              <Text className="text-base font-bold text-gray-800">24</Text>
-            </View>
-            <View className="w-[50%] p-2 border-l border-gray-100">
-              <Text className="text-xs text-gray-500 mb-1">Total Amount</Text>
-              <Text className="text-base font-bold text-[#16A34A]">Rs. 1,45,600</Text>
-            </View>
-            <View className="w-[50%] p-2 border-t border-gray-100">
-              <Text className="text-xs text-gray-500 mb-1">Total Paid</Text>
-              <Text className="text-base font-bold text-[#4C73B6]">Rs. 1,20,300</Text>
-            </View>
-            <View className="w-[50%] p-2 border-t border-l border-gray-100">
-              <Text className="text-xs text-gray-500 mb-1">Outstanding</Text>
-              <Text className="text-base font-bold text-[#DC2626]">Rs. 25,300</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Filter Bar */}
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="font-bold text-gray-800 text-base">Transactions</Text>
-          <TouchableOpacity
-            className="flex-row items-center bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200"
-            onPress={() => setShowFilterPopup(true)}
-          >
-            <Ionicons name="filter" size={16} color="#1A3F75" />
-            <Text className="text-[#1A3F75] font-semibold text-xs ml-1">
-              Filter: {transactionFilter}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Transactions List */}
-        {filteredTransactions.map((item) => (
-          <View key={item.id} className="bg-white mb-3 p-4 rounded-xl shadow-sm">
-            <View className="flex-row justify-between items-center mb-2">
-              <View className="flex-row items-center">
-                <View className={`w-8 h-8 rounded-full items-center justify-center ${item.type === 'Credit' ? 'bg-[#DCFCE7]' : 'bg-[#FEE2E2]'}`}>
-                  <Ionicons
-                    name={item.type === 'Credit' ? 'arrow-down' : 'arrow-up'}
-                    size={16}
-                    color={item.type === 'Credit' ? '#16A34A' : '#DC2626'}
-                  />
-                </View>
-                <View className="ml-3">
-                  <Text className="text-[14px] font-bold text-gray-800">{item.type}</Text>
-                  <Text className="text-[11px] text-gray-400 mt-0.5">{item.date}</Text>
-                </View>
+            <View className="p-3 flex-row flex-wrap">
+              <View className="w-[50%] p-1.5">
+                <Text className="text-[10px] text-gray-500 mb-0.5">Total Orders</Text>
+                <Text className="text-sm font-bold text-gray-800">{totalOrdersCount}</Text>
               </View>
-              <Text className={`text-sm font-bold ${item.type === 'Credit' ? 'text-[#16A34A]' : 'text-[#DC2626]'}`}>{item.amount}</Text>
-            </View>
-            <View className="flex-row justify-between items-center pt-2 border-t border-gray-100">
-              <Text className="text-xs text-gray-500">{item.desc}</Text>
-              <Text className="text-xs text-gray-600 font-semibold">Bal: {item.balance}</Text>
+              <View className="w-[50%] p-1.5 border-l border-gray-100">
+                <Text className="text-[10px] text-gray-500 mb-0.5">Total Amount</Text>
+                <Text className="text-sm font-bold text-[#16A34A]">Rs. {totalAmount.toFixed(2)}</Text>
+              </View>
+              <View className="w-[50%] p-1.5 border-t border-gray-100">
+                <Text className="text-[10px] text-gray-500 mb-0.5">Total Paid</Text>
+                <Text className="text-sm font-bold text-[#4C73B6]">Rs. {totalPaid.toFixed(2)}</Text>
+              </View>
+              <View className="w-[50%] p-1.5 border-t border-l border-gray-100">
+                <Text className="text-[10px] text-gray-500 mb-0.5">Outstanding</Text>
+                <Text className="text-sm font-bold text-[#DC2626]">Rs. {outstanding.toFixed(2)}</Text>
+              </View>
             </View>
           </View>
-        ))}
+
+          {/* Filter Bar */}
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="font-bold text-gray-800 text-sm">Transactions</Text>
+            <TouchableOpacity
+              className="flex-row items-center bg-white px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200"
+              onPress={() => setShowFilterPopup(true)}
+            >
+              <Ionicons name="filter" size={14} color="#1A3F75" />
+              <Text className="text-[#1A3F75] font-semibold text-[11px] ml-1">
+                Filter: {transactionFilter}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Scrollable Transactions List */}
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredTransactions.length === 0 ? (
+            <Text className="text-center text-gray-500 mt-5">No transactions found.</Text>
+          ) : (
+            filteredTransactions.map((item) => {
+              const isCredit = item.type === 'Order';
+              return (
+                <View key={item.id} className="bg-white mb-3 p-4 rounded-xl shadow-sm">
+                  <View className="flex-row justify-between items-center mb-2">
+                    <View className="flex-row items-center">
+                      <View className={`w-8 h-8 rounded-full items-center justify-center ${isCredit ? 'bg-[#FEE2E2]' : 'bg-[#DCFCE7]'}`}>
+                        <Ionicons
+                          name={isCredit ? 'arrow-up' : 'arrow-down'}
+                          size={16}
+                          color={isCredit ? '#DC2626' : '#16A34A'}
+                        />
+                      </View>
+                      <View className="ml-3">
+                        <Text className="text-[14px] font-bold text-gray-800">{item.type}</Text>
+                        <Text className="text-[11px] text-gray-400 mt-0.5">{new Date(item.date || item.created_at).toLocaleDateString()}</Text>
+                      </View>
+                    </View>
+                    <Text className={`text-sm font-bold ${isCredit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>Rs. {item.amount}</Text>
+                  </View>
+                  <View className="flex-row justify-between items-center pt-2 border-t border-gray-100">
+                    <Text className="text-xs text-gray-500 flex-1 mr-2" numberOfLines={1}>{item.description || item.payment_mode}</Text>
+                    {isCredit ? (
+                      <Text className="text-xs text-gray-600 font-semibold">Bal: Rs. {item.balance}</Text>
+                    ) : (
+                      <Text className="text-xs text-gray-600 font-semibold">{item.reference_no}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
       </View>
     );
   };
 
-  const renderInfo = () => (
-    <View className="mx-4">
-      {/* Store Image */}
-      <View className="bg-white rounded-xl shadow-sm overflow-hidden mb-4">
-        <Image
-          source={{ uri: storeImage }}
-          className="w-full h-[180px]"
-          resizeMode="cover"
-        />
-      </View>
-
-      {/* Store Details */}
-      <View className="bg-white rounded-xl shadow-sm p-4 mb-4">
-        <Text className="text-lg font-bold text-gray-800 mb-3">Store Details</Text>
-
-        <View className="flex-row items-center mb-3">
-          <View className="w-9 h-9 rounded-full bg-[#EEF2FF] items-center justify-center">
-            <MaterialIcons name="store" size={18} color="#4C73B6" />
+  const renderInfo = () => {
+    if (detailLoading) {
+      return <ActivityIndicator size="large" color="#1A3F75" style={{ marginTop: 50 }} />;
+    }
+    return (
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        <View className="mx-4">
+          {/* Store Image */}
+          <View className="bg-white rounded-xl shadow-sm overflow-hidden mb-4">
+            <Image
+              source={{ uri: storeImage }}
+              className="w-full h-[180px]"
+              resizeMode="cover"
+            />
           </View>
-          <View className="ml-3">
-            <Text className="text-[11px] text-gray-400">Store Name</Text>
-            <Text className="text-[14px] font-semibold text-gray-800">{storeName}</Text>
+
+          {/* Store Details */}
+          <View className="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <Text className="text-lg font-bold text-gray-800 mb-3">Store Details</Text>
+
+            <View className="flex-row items-center mb-3">
+              <View className="w-9 h-9 rounded-full bg-[#EEF2FF] items-center justify-center">
+                <MaterialIcons name="store" size={18} color="#4C73B6" />
+              </View>
+              <View className="ml-3">
+                <Text className="text-[11px] text-gray-400">Store Name</Text>
+                <Text className="text-[14px] font-semibold text-gray-800">{storeName}</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center mb-3">
+              <View className="w-9 h-9 rounded-full bg-[#FEF3C7] items-center justify-center">
+                <MaterialIcons name="category" size={18} color="#D97706" />
+              </View>
+              <View className="ml-3">
+                <Text className="text-[11px] text-gray-400">Category</Text>
+                <Text className="text-[14px] font-semibold text-gray-800">{storeCategory}</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center mb-3">
+              <View className="w-9 h-9 rounded-full bg-[#DCFCE7] items-center justify-center">
+                <MaterialIcons name="phone" size={18} color="#16A34A" />
+              </View>
+              <View className="ml-3">
+                <Text className="text-[11px] text-gray-400">Contact</Text>
+                <Text className="text-[14px] font-semibold text-gray-800">{storeContact}</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center">
+              <View className="w-9 h-9 rounded-full bg-[#FEE2E2] items-center justify-center">
+                <MaterialIcons name="location-on" size={18} color="#DC2626" />
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-[11px] text-gray-400">Address</Text>
+                <Text className="text-[14px] font-semibold text-gray-800" numberOfLines={2}>
+                  {storeAddress}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
-
-        <View className="flex-row items-center mb-3">
-          <View className="w-9 h-9 rounded-full bg-[#FEF3C7] items-center justify-center">
-            <MaterialIcons name="category" size={18} color="#D97706" />
-          </View>
-          <View className="ml-3">
-            <Text className="text-[11px] text-gray-400">Category</Text>
-            <Text className="text-[14px] font-semibold text-gray-800">{storeCategory}</Text>
-          </View>
-        </View>
-
-        <View className="flex-row items-center mb-3">
-          <View className="w-9 h-9 rounded-full bg-[#DCFCE7] items-center justify-center">
-            <MaterialIcons name="phone" size={18} color="#16A34A" />
-          </View>
-          <View className="ml-3">
-            <Text className="text-[11px] text-gray-400">Contact</Text>
-            <Text className="text-[14px] font-semibold text-gray-800">{storeContact}</Text>
-          </View>
-        </View>
-
-        <View className="flex-row items-center">
-          <View className="w-9 h-9 rounded-full bg-[#FEE2E2] items-center justify-center">
-            <MaterialIcons name="location-on" size={18} color="#DC2626" />
-          </View>
-          <View className="ml-3">
-            <Text className="text-[11px] text-gray-400">Address</Text>
-            <Text className="text-[14px] font-semibold text-gray-800">123, Main Road, City Center</Text>
-          </View>
-        </View>
-      </View>
-
-    </View>
-  );
+      </ScrollView>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -290,12 +348,12 @@ export default function StoreInfoScreen() {
         </View>
       </LinearGradient>
 
-      {/* Scrollable Content */}
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      {/* Fixed Tab Content */}
+      <View className="flex-1">
         {activeTab === 'Orders' && renderOrders()}
         {activeTab === 'Transaction' && renderTransactions()}
         {activeTab === 'Info' && renderInfo()}
-      </ScrollView>
+      </View>
 
       {/* Animated FAB Menu Background Overlay (Only for Orders) */}
       {activeTab === 'Orders' && isFabOpen && (
@@ -418,19 +476,42 @@ export default function StoreInfoScreen() {
             </View>
 
             <TouchableOpacity
-              className="bg-[#1A3F75] py-4 rounded-2xl items-center shadow-md"
-              onPress={() => {
+              className={`bg-[#1A3F75] py-4 rounded-2xl items-center shadow-md ${isSubmitting ? 'opacity-70' : ''}`}
+              disabled={isSubmitting}
+              onPress={async () => {
                 if (!transAmount) {
                   showPopup('Required', 'Please enter a transaction amount.');
                   return;
                 }
-                setShowTransactionModal(false);
-                setTransAmount('');
-                setTransNote('');
-                showPopup('Success', 'Transaction saved successfully!');
+                try {
+                  // Format date to YYYY-MM-DD HH:MM:SS
+                  let paymentDateObj = new Date(transDate);
+                  if (isNaN(paymentDateObj.getTime())) {
+                     paymentDateObj = new Date();
+                  }
+                  const formattedDate = paymentDateObj.toISOString().slice(0, 19).replace('T', ' ');
+
+                  await collectPayment(storeId, {
+                    amount: parseFloat(transAmount),
+                    payment_mode: transMode,
+                    reference_no: transNote || `REF-${Date.now()}`,
+                    payment_date: formattedDate
+                  });
+
+                  setShowTransactionModal(false);
+                  setTransAmount('');
+                  setTransNote('');
+                  showPopup('Success', 'Transaction saved successfully!');
+                } catch (error: any) {
+                  showPopup('Error', error.response?.data?.message || 'Failed to save transaction.');
+                }
               }}
             >
-              <Text className="text-white text-[15px] font-bold">Submit</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white text-[15px] font-bold">Submit</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

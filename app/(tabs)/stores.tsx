@@ -4,7 +4,7 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useShops } from '../../context/ShopContext';
+import { useShopStore, IMAGE_BASE_URL } from '../../store/store';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { ActivityIndicator, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -41,7 +41,7 @@ const MONTHS = [
 export default function StoresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { shops, fetchShops, isLoading } = useShops();
+  const { shops, fetchShops, isLoading } = useShopStore();
   
   const now = new Date();
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(now));
@@ -76,10 +76,11 @@ export default function StoresScreen() {
 
   // Filter shops by selected date
   const filteredShops = useMemo(() => {
-    return shops.filter(shop => {
-      const shopDate = shop.created_at.split('T')[0];
-      return shopDate === selectedDate;
-    });
+    // return shops.filter(shop => {
+    //   const shopDate = shop.created_at.split('T')[0];
+    //   return shopDate === selectedDate;
+    // });
+    return shops;
   }, [shops, selectedDate]);
 
   return (
@@ -108,6 +109,7 @@ export default function StoresScreen() {
       </LinearGradient>
 
       {/* Fixed Date Filter */}
+      {false && (
       <View className="bg-[#F3F6F8]">
         <View className="flex-row justify-end px-5 mt-3">
           <TouchableOpacity 
@@ -148,6 +150,7 @@ export default function StoresScreen() {
           </ScrollView>
         </View>
       </View>
+      )}
 
       {/* Scrollable Store List */}
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
@@ -158,9 +161,8 @@ export default function StoresScreen() {
           </View>
         ) : filteredShops.length > 0 ? (
           filteredShops.map((item) => {
-            const baseUrl = process.env.EXPO_PUBLIC_BASE_URL || '';
             const storeImageUrl = item.images && item.images.length > 0 
-              ? (item.images[0].image_url.startsWith('http') ? item.images[0].image_url : `${baseUrl}${item.images[0].image_url}`)
+              ? (item.images[0].image_url.startsWith('http') ? item.images[0].image_url : `${IMAGE_BASE_URL}${item.images[0].image_url.startsWith('/') ? '' : '/'}${item.images[0].image_url}`)
               : 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
 
             return (

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,154 +10,19 @@ import {
   Image,
   Modal,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, Feather, MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-
-const allStores = [
-  {
-    id: 1,
-    name: "Krishna Medical Stores",
-    category: "Medicine Shop",
-    contact: "+91 9876543210",
-    email: "krishna@med.com",
-    address: "12, MG Road, Ahmedabad",
-    image:
-      "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: 2,
-    name: "Radha Rakomari Store",
-    category: "Grocery Shop",
-    contact: "+91 9123456780",
-    email: "radha@store.com",
-    address: "45, Station Rd, Surat",
-    image:
-      "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: 3,
-    name: "Narmada Medical",
-    category: "Medicine Shop",
-    contact: "+91 8765432109",
-    email: "narmada@med.com",
-    address: "78, Ring Road, Vadodara",
-    image:
-      "https://images.unsplash.com/photo-1576602976047-174e57a47881?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: 4,
-    name: "Sri Hari Medicine Center",
-    category: "Pharmacy",
-    contact: "+91 7654321098",
-    email: "srihari@pharma.com",
-    address: "23, CG Road, Rajkot",
-    image:
-      "https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: 5,
-    name: "MedPlus Pharmacy",
-    category: "Pharmacy",
-    contact: "+91 6543210987",
-    email: "medplus@rx.com",
-    address: "90, SG Highway, Ahmedabad",
-    image:
-      "https://images.unsplash.com/photo-1586015555751-63bb77f4322a?q=80&w=200&auto=format&fit=crop",
-  },
-  {
-    id: 6,
-    name: "Apollo Medical Shop",
-    category: "Medicine Shop",
-    contact: "+91 5432109876",
-    email: "apollo@med.com",
-    address: "56, Law Garden, Ahmedabad",
-    image:
-      "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=200&auto=format&fit=crop",
-  },
-];
-
-const productCatalog = [
-  {
-    id: 1,
-    name: "Paracetamol 500mg",
-    composition: "Acetaminophen 500mg",
-    brand: "Cipla",
-    category: "Pain Relief",
-    price: 35,
-    unit: "Strip (10)",
-    image:
-      "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=100&auto=format&fit=crop",
-  },
-  {
-    id: 2,
-    name: "Amoxicillin 250mg",
-    composition: "Amoxicillin Trihydrate 250mg",
-    brand: "Sun Pharma",
-    category: "Antibiotics",
-    price: 85,
-    unit: "Strip (10)",
-    image:
-      "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=100&auto=format&fit=crop",
-  },
-  {
-    id: 3,
-    name: "Cetirizine 10mg",
-    composition: "Cetirizine Dihydrochloride 10mg",
-    brand: "Dr. Reddy",
-    category: "Allergy",
-    price: 28,
-    unit: "Strip (10)",
-    image:
-      "https://images.unsplash.com/photo-1550572017-edd951aa8f72?q=80&w=100&auto=format&fit=crop",
-  },
-  {
-    id: 4,
-    name: "Omeprazole 20mg",
-    composition: "Omeprazole 20mg",
-    brand: "Mankind",
-    category: "Stomach Care",
-    price: 62,
-    unit: "Strip (15)",
-    image:
-      "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?q=80&w=100&auto=format&fit=crop",
-  },
-  {
-    id: 5,
-    name: "Azithromycin 500mg",
-    composition: "Azithromycin Dihydrate 500mg",
-    brand: "Cipla",
-    category: "Antibiotics",
-    price: 120,
-    unit: "Strip (3)",
-    image:
-      "https://images.unsplash.com/photo-1576602976047-174e57a47881?q=80&w=100&auto=format&fit=crop",
-  },
-  {
-    id: 6,
-    name: "Metformin 500mg",
-    composition: "Metformin HCl 500mg",
-    brand: "USV",
-    category: "Diabetes",
-    price: 45,
-    unit: "Strip (10)",
-    image:
-      "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=100&auto=format&fit=crop",
-  },
-];
-
-const CATEGORIES = ["All", "Pain Relief", "Antibiotics", "Allergy", "Stomach Care", "Diabetes"];
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useShopStore, useOrderStore, useProductStore, IMAGE_BASE_URL } from "../../store/store";
 
 interface CartItem {
   id: number;
   name: string;
-  composition: string;
   brand: string;
-  price: number;
-  unit: string;
-  image: string;
   qty: number;
 }
 
@@ -167,38 +32,53 @@ export default function OrderCreateScreen() {
   const params = useLocalSearchParams();
 
   const fromStore = params.fromStore === "true";
+  const storeIdParam = params.storeId as string;
   const preSelectedStore = fromStore ? (params.storeName as string) : "";
   const storeCategory = (params.storeCategory as string) || "";
   const storeContact = (params.storeContact as string) || "";
   const storeImage = (params.storeImage as string) || "";
 
-  const [selectedStore, setSelectedStore] = useState(preSelectedStore);
+  // Zustand stores
+  const { shops, fetchShops } = useShopStore();
+  const { createOrder, isLoading: isOrderSubmitting } = useOrderStore();
+  const { products, fetchProducts, categories, fetchCategories, isLoading: productsLoading } = useProductStore();
+
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(storeIdParam ? parseInt(storeIdParam) : null);
+  const [selectedStoreName, setSelectedStoreName] = useState(preSelectedStore);
+  
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [modalSearch, setModalSearch] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [note, setNote] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  const selectedStoreData = allStores.find((s) => s.name === selectedStore);
+  useEffect(() => {
+    fetchShops();
+    fetchProducts();
+    fetchCategories();
+  }, []);
 
-  const filteredModalProducts = productCatalog.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(modalSearch.toLowerCase()) ||
-      p.composition.toLowerCase().includes(modalSearch.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "All" || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const selectedStoreData = shops.find((s) => s.id === selectedStoreId);
 
-  const toggleProduct = (product: (typeof productCatalog)[0]) => {
+  const filteredModalProducts = useMemo(() => {
+    return products.filter((p) => {
+      const brandName = p.brand?.name || "";
+      const matchesSearch = p.product_name.toLowerCase().includes(modalSearch.toLowerCase()) || 
+                           brandName.toLowerCase().includes(modalSearch.toLowerCase());
+      const matchesCategory = selectedCategoryId ? (p.brand?.category_id === selectedCategoryId || p.category_id === selectedCategoryId) : true;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, modalSearch, selectedCategoryId]);
+
+  const toggleProduct = (product: any) => {
     const existing = cart.find((c) => c.id === product.id);
     if (existing) {
       setCart(cart.filter((c) => c.id !== product.id));
     } else {
-      setCart([...cart, { ...product, qty: 1 }]);
+      setCart([...cart, { id: product.id, name: product.product_name, brand: product.brand?.name || "", qty: 1 }]);
     }
   };
 
@@ -210,23 +90,49 @@ export default function OrderCreateScreen() {
     );
   };
 
-  const totalAmount = cart.reduce(
-    (sum, item) => sum + item.price * item.qty,
-    0,
-  );
-  const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+  const handlePlaceOrder = async () => {
+    if (!selectedStoreId && !storeIdParam) {
+      alert("Please select a store");
+      return;
+    }
+    if (cart.length === 0) {
+      alert("Please add at least one product");
+      return;
+    }
+
+    const payload = {
+      shop_id: selectedStoreId || parseInt(storeIdParam),
+      items: cart.map(item => ({
+        product_id: item.id,
+        quantity: item.qty
+      })),
+      notes: note
+    };
+
+    try {
+      await createOrder(payload);
+      alert("Order placed successfully!");
+      router.back();
+    } catch (error) {
+      alert("Failed to place order. Please try again.");
+    }
+  };
+
+  const getStoreImageUrl = (item: any) => {
+    if (!item) return 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
+    if (item.images && item.images.length > 0) {
+      const url = item.images[0].image_url;
+      return url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+    return 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
+  };
 
   const renderStoreProfileCard = () => {
-    const name = fromStore ? preSelectedStore : selectedStore;
+    const name = fromStore ? preSelectedStore : selectedStoreName;
     const cat = fromStore ? storeCategory : selectedStoreData?.category || "";
     const phone = fromStore ? storeContact : selectedStoreData?.contact || "";
-    const email = fromStore
-      ? "store@pharmacy.com"
-      : selectedStoreData?.email || "";
-    const addr = fromStore
-      ? "123, Main Road, City Center"
-      : selectedStoreData?.address || "";
-    const img = fromStore ? storeImage : selectedStoreData?.image || "";
+    const addr = fromStore ? "Address from parameters" : selectedStoreData?.address || "";
+    const img = fromStore ? storeImage : getStoreImageUrl(selectedStoreData);
 
     if (!name) return null;
 
@@ -241,8 +147,8 @@ export default function OrderCreateScreen() {
           <View className="flex-1 ml-4 justify-center">
             <Text className="text-[16px] font-bold text-gray-800">{name}</Text>
             <View className="flex-row items-center mt-3">
-              <MaterialIcons name="email" size={15} color="#9CA3AF" />
-              <Text className="text-[12px] text-gray-500 ml-2">{email}</Text>
+              <MaterialIcons name="category" size={15} color="#9CA3AF" />
+              <Text className="text-[12px] text-gray-500 ml-2">{cat}</Text>
             </View>
             <View className="flex-row items-center mt-2">
               <MaterialIcons name="phone" size={15} color="#9CA3AF" />
@@ -259,7 +165,7 @@ export default function OrderCreateScreen() {
             color="#9CA3AF"
             style={{ marginTop: 2 }}
           />
-          <Text className="text-[12px] text-gray-500 ml-2 flex-1">{addr}</Text>
+          <Text className="text-[12px] text-gray-500 ml-2 flex-1" numberOfLines={2}>{selectedStoreData?.address || addr}</Text>
         </View>
       </View>
     );
@@ -292,7 +198,7 @@ export default function OrderCreateScreen() {
       </LinearGradient>
 
       <View className="z-10 pb-1">
-        {/* Store Selector (from Orders tab) */}
+        {/* Store Selector */}
         {!fromStore && (
           <View className="mx-4 mt-4">
             <Text className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
@@ -307,9 +213,9 @@ export default function OrderCreateScreen() {
                   <MaterialIcons name="store" size={20} color="#4C73B6" />
                 </View>
                 <Text
-                  className={`ml-3 text-[14px] font-semibold ${selectedStore ? "text-gray-800" : "text-gray-400"}`}
+                  className={`ml-3 text-[14px] font-semibold ${selectedStoreName ? "text-gray-800" : "text-gray-400"}`}
                 >
-                  {selectedStore || "Choose a store..."}
+                  {selectedStoreName || "Choose a store..."}
                 </Text>
               </View>
               <Ionicons
@@ -324,29 +230,30 @@ export default function OrderCreateScreen() {
                 style={{ maxHeight: 200 }}
                 nestedScrollEnabled
               >
-                {allStores.map((store) => (
+                {shops.map((store) => (
                   <TouchableOpacity
                     key={store.id}
-                    className={`flex-row items-center px-4 py-3 border-b border-gray-50 ${selectedStore === store.name ? "bg-[#EEF2FF]" : ""}`}
+                    className={`flex-row items-center px-4 py-3 border-b border-gray-50 ${selectedStoreId === store.id ? "bg-[#EEF2FF]" : ""}`}
                     onPress={() => {
-                      setSelectedStore(store.name);
+                      setSelectedStoreId(store.id);
+                      setSelectedStoreName(store.shop_name);
                       setShowStoreDropdown(false);
                     }}
                   >
                     <Image
-                      source={{ uri: store.image }}
+                      source={{ uri: getStoreImageUrl(store) }}
                       className="w-9 h-9 rounded-full bg-gray-200"
                       resizeMode="cover"
                     />
                     <View className="ml-3 flex-1">
                       <Text className="text-[13px] font-semibold text-gray-800">
-                        {store.name}
+                        {store.shop_name}
                       </Text>
                       <Text className="text-[11px] text-gray-400">
                         {store.category}
                       </Text>
                     </View>
-                    {selectedStore === store.name && (
+                    {selectedStoreId === store.id && (
                       <Ionicons
                         name="checkmark-circle"
                         size={20}
@@ -364,7 +271,7 @@ export default function OrderCreateScreen() {
         {renderStoreProfileCard()}
 
         {/* Note + Delivery Date Row */}
-        {(selectedStore || fromStore) && (
+        {(selectedStoreName || fromStore) && (
           <View className="flex-row mx-4 mt-4 gap-3">
             <View className="flex-1 bg-white rounded-xl shadow-sm p-3">
               <Text className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
@@ -385,18 +292,33 @@ export default function OrderCreateScreen() {
               <Text className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
                 Delivery Date
               </Text>
-              <TouchableOpacity className="flex-row items-center mt-1">
+              <TouchableOpacity 
+                className="flex-row items-center mt-1"
+                onPress={() => setShowDatePicker(true)}
+              >
                 <Ionicons name="calendar-outline" size={18} color="#4C73B6" />
                 <Text className="text-[13px] text-gray-700 font-semibold ml-2">
-                  {deliveryDate || "Select Date"}
+                  {deliveryDate.toLocaleDateString()}
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
+        {showDatePicker && (
+          <DateTimePicker
+            value={deliveryDate}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) setDeliveryDate(selectedDate);
+            }}
+          />
+        )}
+
         {/* Select Product Button */}
-        {(selectedStore || fromStore) && (
+        {(selectedStoreName || fromStore) && (
           <View className="mx-4 mt-5">
             <Text className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
               Select Products
@@ -434,16 +356,13 @@ export default function OrderCreateScreen() {
               >
                 <View className="flex-1 ml-1">
                   <Text
-                    className="text-[13px] font-bold text-gray-800"
+                    className="text-[14px] font-bold text-gray-800"
                     numberOfLines={1}
                   >
                     {item.name}
                   </Text>
-                  <Text className="text-[11px] text-gray-400 mt-0.5">
-                    {item.brand} · {item.unit}
-                  </Text>
-                  <Text className="text-[13px] font-bold text-[#4C73B6] mt-0.5">
-                    ₹{item.price} × {item.qty} = ₹{item.price * item.qty}
+                  <Text className="text-[12px] text-gray-500 mt-1">
+                    {item.brand}
                   </Text>
                 </View>
                 <View className="flex-row items-center bg-[#EEF2FF] rounded-xl px-1">
@@ -470,7 +389,7 @@ export default function OrderCreateScreen() {
       </ScrollView>
 
       {/* Bottom Submit Bar */}
-      {cart.length > 0 && (selectedStore || fromStore) && (
+      {cart.length > 0 && (selectedStoreName || fromStore) && (
         <View
           className="absolute bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-100"
           style={{ paddingBottom: Platform.OS === "ios" ? insets.bottom : 16 }}
@@ -478,64 +397,28 @@ export default function OrderCreateScreen() {
           <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
             <View>
               <Text className="text-[11px] text-gray-400 font-semibold">
-                TOTAL AMOUNT
+                SELECTED ITEMS
               </Text>
               <Text className="text-[22px] font-extrabold text-[#1A3F75]">
-                ₹{totalAmount}
-              </Text>
-              <Text className="text-[11px] text-gray-400">
-                {totalItems} items
+                {cart.length}
               </Text>
             </View>
-            <TouchableOpacity className="bg-[#1A3F75] px-8 py-4 rounded-2xl shadow-md">
-              <Text className="text-white text-[14px] font-bold">
-                Place Order
-              </Text>
+            <TouchableOpacity 
+              className={`bg-[#1A3F75] px-8 py-4 rounded-2xl shadow-md ${isOrderSubmitting ? 'opacity-70' : ''}`}
+              disabled={isOrderSubmitting}
+              onPress={handlePlaceOrder}
+            >
+              {isOrderSubmitting ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white text-[14px] font-bold">
+                  Place Order
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       )}
-
-      {/* Category Selection Modal */}
-      <Modal visible={showCategoryModal} animationType="slide" transparent>
-        <View className="flex-1 bg-black/40 justify-end">
-          <View
-            className="bg-white rounded-t-3xl"
-            style={{
-              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 36,
-            }}
-          >
-            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-              <Text className="text-lg font-bold text-gray-800">
-                Select Category
-              </Text>
-              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
-                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView className="px-5 mt-4" style={{ maxHeight: Dimensions.get("window").height * 0.5 }}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  className={`flex-row items-center justify-between py-4 border-b border-gray-50`}
-                  onPress={() => {
-                    setSelectedCategory(cat);
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text className={`text-[15px] ${selectedCategory === cat ? 'font-bold text-[#4C73B6]' : 'text-gray-700'}`}>
-                    {cat}
-                  </Text>
-                  {selectedCategory === cat && (
-                    <Ionicons name="checkmark-circle" size={22} color="#4C73B6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
       {/* Product Selection Modal */}
       <Modal visible={showProductModal} animationType="slide" transparent>
@@ -543,7 +426,7 @@ export default function OrderCreateScreen() {
           <View
             className="bg-white rounded-t-3xl"
             style={{
-              maxHeight: Dimensions.get("window").height * 0.8,
+              maxHeight: Dimensions.get("window").height * 0.85,
               paddingBottom: Platform.OS === "ios" ? insets.bottom : 16,
             }}
           >
@@ -556,97 +439,112 @@ export default function OrderCreateScreen() {
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {/* Modal Search & Category Filter */}
+            
+            {/* Modal Search */}
             <View className="mx-5 mb-3 flex-row gap-2">
               <View className="flex-1 bg-[#F1F5F9] rounded-xl flex-row items-center px-4 py-2.5">
                 <Ionicons name="search" size={18} color="#9CA3AF" />
                 <TextInput
-                  placeholder="Search by name..."
+                  placeholder="Search by name or brand..."
                   placeholderTextColor="#9CA3AF"
                   className="flex-1 ml-3 text-[13px] text-gray-800"
                   value={modalSearch}
                   onChangeText={setModalSearch}
                 />
               </View>
-              <TouchableOpacity
-                className="bg-[#EEF2FF] px-4 rounded-xl items-center justify-center border border-[#D1D5DB]"
-                onPress={() => setShowCategoryModal(true)}
-              >
-                <Ionicons name="filter" size={18} color="#4C73B6" />
-              </TouchableOpacity>
             </View>
 
-            {/* Category Filter Badge */}
-            {selectedCategory !== "All" && (
-              <View className="mx-5 mb-3 flex-row">
-                <View className="bg-[#4C73B6] px-3 py-1.5 rounded-full flex-row items-center">
-                  <Text className="text-white text-[12px] font-bold mr-2">{selectedCategory}</Text>
-                  <TouchableOpacity onPress={() => setSelectedCategory("All")}>
-                    <Ionicons name="close-circle" size={16} color="white" />
+            {/* Categories Section */}
+            <View className="mb-4">
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={{ paddingHorizontal: 20 }}
+              >
+                <TouchableOpacity
+                  className={`px-4 py-2 rounded-full mr-2 ${selectedCategoryId === null ? 'bg-[#1A3F75]' : 'bg-gray-100'}`}
+                  onPress={() => setSelectedCategoryId(null)}
+                >
+                  <Text className={`text-[12px] font-bold ${selectedCategoryId === null ? 'text-white' : 'text-gray-600'}`}>All</Text>
+                </TouchableOpacity>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    className={`px-4 py-2 rounded-full mr-2 ${selectedCategoryId === cat.id ? 'bg-[#1A3F75]' : 'bg-gray-100'}`}
+                    onPress={() => setSelectedCategoryId(cat.id)}
+                  >
+                    <Text className={`text-[12px] font-bold ${selectedCategoryId === cat.id ? 'text-white' : 'text-gray-600'}`}>{cat.name}</Text>
                   </TouchableOpacity>
-                </View>
-              </View>
-            )}
+                ))}
+              </ScrollView>
+            </View>
 
             {/* Product List */}
-            <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
-              {filteredModalProducts.map((product) => {
-                const isSelected = cart.some((c) => c.id === product.id);
-                const cartItem = cart.find((c) => c.id === product.id);
-                return (
-                  <TouchableOpacity
-                    key={product.id}
-                    className={`flex-row items-center p-3 mb-2 rounded-xl border ${isSelected ? "bg-[#EEF2FF] border-[#4C73B6]" : "bg-white border-gray-100"}`}
-                    onPress={() => toggleProduct(product)}
-                  >
-                    {/* Checkbox */}
-                    <View
-                      className={`w-6 h-6 rounded-md border-2 items-center justify-center mr-3 ${isSelected ? "bg-[#4C73B6] border-[#4C73B6]" : "border-gray-300"}`}
-                    >
-                      {isSelected && (
-                        <Ionicons name="checkmark" size={16} color="white" />
-                      )}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-[13px] font-bold text-gray-800">
-                        {product.name}
-                      </Text>
-                      <Text className="text-[11px] text-gray-400 mt-0.5">
-                        {product.composition}
-                      </Text>
-                      <Text className="text-[13px] font-bold text-[#4C73B6] mt-1">
-                        ₹{product.price} / {product.unit}
-                      </Text>
-                    </View>
-                    {isSelected && cartItem && (
-                      <View className="flex-row items-center bg-white rounded-xl px-1 border border-[#4C73B6]">
-                        <TouchableOpacity
-                          className="w-7 h-7 items-center justify-center"
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            updateQty(product.id, -1);
-                          }}
+            {productsLoading ? (
+               <ActivityIndicator size="large" color="#1A3F75" style={{ marginTop: 20 }} />
+            ) : (
+              <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
+                {filteredModalProducts.length > 0 ? (
+                  filteredModalProducts.map((product) => {
+                    const isSelected = cart.some((c) => c.id === product.id);
+                    const cartItem = cart.find((c) => c.id === product.id);
+                    return (
+                      <TouchableOpacity
+                        key={product.id}
+                        className={`flex-row items-center p-3 mb-2 rounded-xl border ${isSelected ? "bg-[#EEF2FF] border-[#4C73B6]" : "bg-white border-gray-100"}`}
+                        onPress={() => toggleProduct(product)}
+                      >
+                        {/* Checkbox */}
+                        <View
+                          className={`w-6 h-6 rounded-md border-2 items-center justify-center mr-3 ${isSelected ? "bg-[#4C73B6] border-[#4C73B6]" : "border-gray-300"}`}
                         >
-                          <Feather name="minus" size={14} color="#4C73B6" />
-                        </TouchableOpacity>
-                        <Text className="text-[14px] font-bold text-[#1A3F75] mx-2">
-                          {cartItem.qty}
-                        </Text>
-                        <TouchableOpacity
-                          className="w-7 h-7 items-center justify-center"
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            updateQty(product.id, 1);
-                          }}
-                        >
-                          <Feather name="plus" size={14} color="#4C73B6" />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                          {isSelected && (
+                            <Ionicons name="checkmark" size={16} color="white" />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-[14px] font-bold text-gray-800">
+                            {product.product_name}
+                          </Text>
+                          <Text className="text-[12px] text-gray-500 mt-1">
+                            {product.brand?.name || "No Brand"}
+                          </Text>
+                        </View>
+                        {isSelected && cartItem && (
+                          <View className="flex-row items-center bg-white rounded-xl px-1 border border-[#4C73B6]">
+                            <TouchableOpacity
+                              className="w-7 h-7 items-center justify-center"
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                updateQty(product.id, -1);
+                              }}
+                            >
+                              <Feather name="minus" size={14} color="#4C73B6" />
+                            </TouchableOpacity>
+                            <Text className="text-[14px] font-bold text-[#1A3F75] mx-2">
+                              {cartItem.qty}
+                            </Text>
+                            <TouchableOpacity
+                              className="w-7 h-7 items-center justify-center"
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                updateQty(product.id, 1);
+                              }}
+                            >
+                              <Feather name="plus" size={14} color="#4C73B6" />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <View className="items-center py-10">
+                    <Text className="text-gray-400">No products found</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
             {/* Modal Done Button */}
             <View className="px-5 pt-3">
               <TouchableOpacity

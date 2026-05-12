@@ -19,8 +19,9 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { Image } from "expo-image";
 import API from "../../utils/api";
-import { useShops } from "../../context/ShopContext";
 import { useEffect } from "react";
+import { useShopStore, useRouteStore } from "../../store/store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
@@ -37,22 +38,41 @@ export default function HomeScreen() {
   const [isWorking, setIsWorking] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const [locationLoading, setLocationLoading] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
-  const [attendanceType, setAttendanceType] = useState<'login' | 'logout'>('login');
+  const [attendanceType, setAttendanceType] = useState<"login" | "logout">(
+    "login",
+  );
   const [submitting, setSubmitting] = useState(false);
   const lottieRef = useRef<LottieView>(null);
   const bounceAnim = useRef(new Animated.Value(1)).current;
-  const { shops, fetchShops } = useShops();
+  const [showLottie, setShowLottie] = useState(true);
+  const { shops, fetchShops } = useShopStore();
+  const { routes, fetchRoutes } = useRouteStore();
 
   useEffect(() => {
     fetchShops();
+    fetchRoutes();
+    // Restore attendance state from storage
+    AsyncStorage.getItem('isWorking').then((val) => {
+      if (val === 'true') {
+        setIsWorking(true);
+      }
+    });
   }, []);
 
   React.useEffect(() => {
-    if (!isWorking) {
+    if (isWorking) {
+      // Working: show green looping animation
+      setShowLottie(true);
+    } else {
+      // Not working: show red animation once, then hide
+      setShowLottie(true);
+
       // Bounce the button one time
       Animated.sequence([
         Animated.spring(bounceAnim, {
@@ -67,17 +87,23 @@ export default function HomeScreen() {
         }),
       ]).start();
 
-      // Play lottie animation one time
+      // Play lottie once then hide after ~2 seconds
       lottieRef.current?.play();
+      const timer = setTimeout(() => {
+        setShowLottie(false);
+      }, 2000);
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [isWorking]);
 
   // Custom popup modal states
   const [popupVisible, setPopupVisible] = useState(false);
   const [popupTitle, setPopupTitle] = useState("");
   const [popupMessage, setPopupMessage] = useState("");
   const [popupType, setPopupType] = useState<"confirm" | "info">("info");
-  const [popupOnConfirm, setPopupOnConfirm] = useState<(() => void) | null>(null);
+  const [popupOnConfirm, setPopupOnConfirm] = useState<(() => void) | null>(
+    null,
+  );
 
   // Show custom popup instead of Alert.alert
   const showPopup = (
@@ -94,6 +120,7 @@ export default function HomeScreen() {
   };
 
   const handlePowerPress = () => {
+    console.log("Power button pressed, isWorking:", isWorking);
     if (isWorking) {
       // Stop work flow — open modal for logout selfie
       showPopup(
@@ -101,8 +128,9 @@ export default function HomeScreen() {
         "Are you sure you want to stop your work day?",
         "confirm",
         async () => {
+          console.log("Logout confirmed");
           setPopupVisible(false);
-          setAttendanceType('logout');
+          setAttendanceType("logout");
           setSelfieUri(null);
           // Request camera permission for logout selfie
           if (!cameraPermission?.granted) {
@@ -118,15 +146,20 @@ export default function HomeScreen() {
         "Are you sure you want to start your work day?",
         "confirm",
         async () => {
+          console.log("Login confirmed");
           setPopupVisible(false);
-          setAttendanceType('login');
+          setAttendanceType("login");
           // Request permissions
           if (!cameraPermission?.granted) {
             await requestCameraPermission();
           }
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== "granted") {
-            showPopup("Permission Denied", "Location permission is required.", "info");
+            showPopup(
+              "Permission Denied",
+              "Location permission is required.",
+              "info",
+            );
             return;
           }
           // Auto-fetch location
@@ -163,7 +196,7 @@ export default function HomeScreen() {
       showPopup("Required", "Please take a selfie first.", "info");
       return;
     }
-    if (attendanceType === 'login' && !location) {
+    if (attendanceType === "login" && !location) {
       showPopup("Required", "Location not captured yet.", "info");
       return;
     }
@@ -171,36 +204,42 @@ export default function HomeScreen() {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('face_image', {
+      formData.append("face_image", {
         uri: selfieUri,
-        type: 'image/jpeg',
-        name: 'selfie.jpg',
+        type: "image/jpeg",
+        name: "selfie.jpg",
       } as any);
 
-      if (attendanceType === 'login') {
+      if (attendanceType === "login") {
         // LOGIN API
-        formData.append('latitude', String(location!.lat));
-        formData.append('longitude', String(location!.lng));
+        formData.append("latitude", String(location!.lat));
+        formData.append("longitude", String(location!.lng));
 
-        await API.post('/attendance/login', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        await API.post("/attendance/login", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
 
         setIsWorking(true);
+        await AsyncStorage.setItem('isWorking', 'true');
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
-        showPopup("Success", "Attendance marked successfully! Your work day has started.", "info");
+        showPopup(
+          "Success",
+          "Attendance marked successfully! Your work day has started.",
+          "info",
+        );
       } else {
         // LOGOUT API
-        const fallbackShopId = shops.length > 0 ? shops[0].id : '1';
-        formData.append('last_shop_id', fallbackShopId); 
+        const fallbackShopId = shops.length > 0 ? String(shops[0].id) : "1";
+        formData.append("last_shop_id", fallbackShopId);
 
-        await API.post('/attendance/logout', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        await API.post("/attendance/logout", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
 
         setIsWorking(false);
+        await AsyncStorage.setItem('isWorking', 'false');
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
@@ -208,15 +247,35 @@ export default function HomeScreen() {
         setTimeout(() => {
           lottieRef.current?.play();
         }, 300);
-        showPopup("Work Ended", "Your work day has been stopped successfully.", "info");
+        showPopup(
+          "Work Ended",
+          "Your work day has been stopped successfully.",
+          "info",
+        );
       }
     } catch (error: any) {
+      const errorMsg = error.response?.data?.message || '';
       console.log("Attendance error:", error.response?.data || error.message);
-      showPopup(
-        "Error",
-        error.response?.data?.message || `Attendance ${attendanceType} failed. Please try again.`,
-        "info"
-      );
+
+      // If the server says "Already logged in", treat it as a success
+      if (attendanceType === 'login' && errorMsg.toLowerCase().includes('already logged in')) {
+        setIsWorking(true);
+        await AsyncStorage.setItem('isWorking', 'true');
+        setSelfieUri(null);
+        setLocation(null);
+        setShowAttendanceModal(false);
+        showPopup(
+          "Already Active",
+          "You are already logged in for today. Your work day is active.",
+          "info",
+        );
+      } else {
+        showPopup(
+          "Error",
+          errorMsg || `Attendance ${attendanceType} failed. Please try again.`,
+          "info",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -268,11 +327,53 @@ export default function HomeScreen() {
             <Text className="flex-1 text-[16px] font-semibold text-white">
               Souren Khan
             </Text>
-            <View className="items-center relative">
-              <Animated.View style={{ transform: [{ scale: bounceAnim }] }}>
+            <View style={{ alignItems: 'center', position: 'relative', width: 40, height: 40 }}>
+              {/* Lottie behind button (zIndex: 0) */}
+              {showLottie && (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    width: 100,
+                    height: 100,
+                    position: "absolute",
+                    top: -30,
+                    left: -30,
+                    zIndex: 0,
+                  }}
+                >
+                  <LottieView
+                    key={`lottie-${isWorking}-${showLottie}`}
+                    ref={lottieRef}
+                    source={require("@/assets/animation/blink-animation.json")}
+                    autoPlay={isWorking}
+                    loop={isWorking}
+                    colorFilters={[
+                      {
+                        keypath: "**",
+                        color: isWorking ? "#059669" : "#DC2626",
+                      },
+                    ]}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              )}
+              {/* Button on top (zIndex: 10) */}
+              <Animated.View style={{ transform: [{ scale: bounceAnim }], zIndex: 10 }}>
                 <TouchableOpacity
                   onPress={handlePowerPress}
-                  className="w-[40px] h-[40px] rounded-full bg-white justify-center items-center z-10"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: 'white',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    elevation: 5,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                  }}
                 >
                   <MaterialIcons
                     name="power-settings-new"
@@ -281,26 +382,6 @@ export default function HomeScreen() {
                   />
                 </TouchableOpacity>
               </Animated.View>
-              <LottieView
-                key={`lottie-${isWorking}`}
-                ref={lottieRef}
-                source={require("@/assets/animation/blink-animation.json")}
-                autoPlay={true}
-                loop={isWorking}
-                colorFilters={[
-                  {
-                    keypath: "**",
-                    color: isWorking ? "#059669" : "#DC2626",
-                  },
-                ]}
-                style={{
-                  width: 100,
-                  height: 100,
-                  position: "absolute",
-                  bottom: -30,
-                  right: -30,
-                }}
-              />
             </View>
           </View>
 
@@ -317,7 +398,7 @@ export default function HomeScreen() {
               </Text>
               <View className="flex-row items-baseline">
                 <Text className="text-[26px] font-extrabold text-[#5789D1]">
-                  5
+                  {shops.length}
                 </Text>
                 <Text className="text-[20px] font-normal text-[#94A3B8]">
                   {" "}
@@ -326,7 +407,7 @@ export default function HomeScreen() {
                 <Text className="text-[26px] font-extrabold">12</Text>
               </View>
               <Text className="text-[12px] font-medium text-[#94A3B8] mt-0.5">
-                Visited / Assigned
+                Visited Today
               </Text>
             </View>
           </View>
@@ -405,6 +486,31 @@ export default function HomeScreen() {
             </Text>
           </View>
 
+          {/* Assigned Route Card */}
+          {routes.length > 0 && (
+            <View className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10">
+              <View className="mr-3.5">
+                <View className="w-[46px] h-[46px] rounded-[14px] bg-[#F5F3FF] justify-center items-center">
+                  <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
+                </View>
+              </View>
+              <View className="flex-1">
+                <Text className="text-[14px] font-semibold text-[#64748B] mb-1">
+                  Assigned Route
+                </Text>
+                <Text className="text-[18px] font-extrabold text-[#1E293B]">
+                  {routes[0].name}
+                </Text>
+                <View className="flex-row items-center mt-0.5">
+                  <MaterialIcons name="location-on" size={12} color="#94A3B8" />
+                  <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
+                    {routes[0].areas?.length || 0} Areas
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Visit Next Store */}
           <TouchableOpacity className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5">
             <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#EDE9FE]">
@@ -450,7 +556,13 @@ export default function HomeScreen() {
             {/* Icon */}
             <View
               className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${
-                popupType === "confirm" ? "bg-[#EFF6FF]" : popupTitle === "Success" ? "bg-[#ECFDF5]" : popupTitle.includes("Denied") || popupTitle === "Required" ? "bg-[#FEF2F2]" : "bg-[#EFF6FF]"
+                popupType === "confirm"
+                  ? "bg-[#EFF6FF]"
+                  : popupTitle === "Success"
+                    ? "bg-[#ECFDF5]"
+                    : popupTitle.includes("Denied") || popupTitle === "Required"
+                      ? "bg-[#FEF2F2]"
+                      : "bg-[#EFF6FF]"
               }`}
             >
               <MaterialIcons
@@ -459,7 +571,8 @@ export default function HomeScreen() {
                     ? "help-outline"
                     : popupTitle === "Success"
                       ? "check-circle"
-                      : popupTitle.includes("Denied") || popupTitle === "Required"
+                      : popupTitle.includes("Denied") ||
+                          popupTitle === "Required"
                         ? "error-outline"
                         : "info-outline"
                 }
@@ -469,7 +582,8 @@ export default function HomeScreen() {
                     ? "#1A3F75"
                     : popupTitle === "Success"
                       ? "#059669"
-                      : popupTitle.includes("Denied") || popupTitle === "Required"
+                      : popupTitle.includes("Denied") ||
+                          popupTitle === "Required"
                         ? "#DC2626"
                         : "#1A3F75"
                 }
@@ -489,7 +603,9 @@ export default function HomeScreen() {
                   className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
                   onPress={() => setPopupVisible(false)}
                 >
-                  <Text className="text-gray-600 font-bold text-[14px]">No</Text>
+                  <Text className="text-gray-600 font-bold text-[14px]">
+                    No
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
@@ -523,7 +639,9 @@ export default function HomeScreen() {
             {/* Modal Header */}
             <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
               <Text className="text-lg font-bold text-gray-800">
-                {attendanceType === 'login' ? 'Mark Attendance' : 'End Work Day'}
+                {attendanceType === "login"
+                  ? "Mark Attendance"
+                  : "End Work Day"}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -536,7 +654,10 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView className="px-5 mt-4" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              className="px-5 mt-4"
+              showsVerticalScrollIndicator={false}
+            >
               {/* Camera Section */}
               <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
                 Take a Selfie
@@ -577,7 +698,11 @@ export default function HomeScreen() {
                   </View>
                 ) : (
                   <View className="flex-1 items-center justify-center">
-                    <MaterialIcons name="camera-alt" size={40} color="#9CA3AF" />
+                    <MaterialIcons
+                      name="camera-alt"
+                      size={40}
+                      color="#9CA3AF"
+                    />
                     <Text className="text-gray-400 mt-2 text-sm">
                       Camera permission required
                     </Text>
@@ -586,7 +711,7 @@ export default function HomeScreen() {
               </View>
 
               {/* Location Section — only for login */}
-              {attendanceType === 'login' && (
+              {attendanceType === "login" && (
                 <>
                   <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
                     Location (Auto-Captured)
@@ -632,18 +757,28 @@ export default function HomeScreen() {
             <View className="px-5 pt-3">
               <TouchableOpacity
                 className={`py-4 rounded-2xl items-center shadow-md ${
-                  attendanceType === 'login'
-                    ? (selfieUri && location ? 'bg-[#1A3F75]' : 'bg-gray-300')
-                    : (selfieUri ? 'bg-[#DC2626]' : 'bg-gray-300')
+                  attendanceType === "login"
+                    ? selfieUri && location
+                      ? "bg-[#1A3F75]"
+                      : "bg-gray-300"
+                    : selfieUri
+                      ? "bg-[#DC2626]"
+                      : "bg-gray-300"
                 }`}
                 onPress={handleAttendanceSubmit}
-                disabled={submitting || !selfieUri || (attendanceType === 'login' && !location)}
+                disabled={
+                  submitting ||
+                  !selfieUri ||
+                  (attendanceType === "login" && !location)
+                }
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text className="text-white text-[15px] font-bold">
-                    {attendanceType === 'login' ? 'Submit Attendance' : 'End Work Day'}
+                    {attendanceType === "login"
+                      ? "Submit Attendance"
+                      : "End Work Day"}
                   </Text>
                 )}
               </TouchableOpacity>

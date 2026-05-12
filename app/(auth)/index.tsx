@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Svg, { Path } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "../../context/AuhthContext";
+import { useAuthStore } from "../../store/store";
 import { useRouter } from "expo-router";
 import { StatusModal } from "../../components/ui/status-modal";
 import { StatusBar } from "expo-status-bar";
@@ -34,7 +34,7 @@ export default function LoginScreen() {
     message: "",
   });
 
-  const { login } = useAuth();
+  const { login } = useAuthStore();
   const router = useRouter();
 
   const showModal = (

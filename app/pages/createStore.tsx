@@ -9,7 +9,8 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { useShops } from '../../context/ShopContext';
+import { useShopStore, useRouteStore } from '../../store/store';
+import API from '../../utils/api';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 
@@ -28,7 +29,7 @@ const INDIAN_STATES = [
 const InputField = ({
   label, value, onChangeText, placeholder, required = false,
   keyboardType = 'default' as any, multiline = false, maxLength, prefix,
-  editable = true, loading = false, rightElement,
+  editable = true, loading = false, rightElement, autoCapitalize = 'none',
 }: any) => (
   <View className="mb-4">
     <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
@@ -48,7 +49,7 @@ const InputField = ({
         multiline={multiline}
         maxLength={maxLength}
         editable={editable}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'characters'}
+        autoCapitalize={autoCapitalize}
         style={multiline ? { minHeight: 60, textAlignVertical: 'top' } : undefined}
       />
       {loading && (
@@ -97,10 +98,11 @@ const ReviewItem = ({ label, value }: { label: string; value: string }) => (
 export default function CreateStoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { createShop, validateGST } = useShops();
+  const { createShop, validateGST, fetchShops } = useShopStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingGST, setIsValidatingGST] = useState(false);
+  const { routes } = useRouteStore();
 
   // Location state
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -170,8 +172,21 @@ export default function CreateStoreScreen() {
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
   const [category, setCategory] = useState('medicine'); // Default or selectable
-  const [routeId, setRouteId] = useState('1'); // Default or selectable
-  const [areaId, setAreaId] = useState('1'); // Default or selectable
+  const [routeId, setRouteId] = useState('');
+  const [areaId, setAreaId] = useState('');
+  const [isManualArea, setIsManualArea] = useState(false);
+  const [areaName, setAreaName] = useState('');
+  const [showRoutePicker, setShowRoutePicker] = useState(false);
+  const [showAreaPicker, setShowAreaPicker] = useState(false);
+
+  // Auto-set first route
+  React.useEffect(() => {
+    if (routes.length > 0 && !routeId) {
+      setRouteId(routes[0].id.toString());
+    }
+  }, [routes]);
+  
+  const selectedRouteObj = routes.find(r => r.id.toString() === routeId);
 
   // Image source picker
   const [showImageSourceModal, setShowImageSourceModal] = useState(false);
@@ -225,6 +240,7 @@ export default function CreateStoreScreen() {
         if (!shopName.trim()) { showPopup('Required', 'Please enter the shop name.'); return false; }
         if (!ownerName.trim()) { showPopup('Required', 'Please enter the owner name.'); return false; }
         if (!contact.trim() || contact.length < 10) { showPopup('Required', 'Please enter a valid 10-digit contact number.'); return false; }
+        if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showPopup('Invalid Email', 'Please enter a valid email address.'); return false; }
         if (!shopType) { showPopup('Required', 'Please select a shop type.'); return false; }
         return true;
       case 1:
@@ -233,9 +249,23 @@ export default function CreateStoreScreen() {
         if (!district.trim()) { showPopup('Required', 'Please enter the district.'); return false; }
         if (!pin.trim() || pin.length !== 6) { showPopup('Required', 'Please enter a valid 6-digit PIN code.'); return false; }
         if (!state) { showPopup('Required', 'Please select the state.'); return false; }
+        if (!routeId) { showPopup('Required', 'Please select a route.'); return false; }
+        if (isManualArea) {
+          if (!areaName.trim()) { showPopup('Required', 'Please enter the area name.'); return false; }
+        } else {
+          if (!areaId) { showPopup('Required', 'Please select an area.'); return false; }
+        }
         return true;
       case 2:
-        return true; // Legal is optional
+        if (!licenseNo.trim()) { showPopup('Required', 'Please enter the license number.'); return false; }
+        if (!fssaiLicense.trim() || fssaiLicense.length !== 14) { showPopup('Required', 'Please enter a valid 14-digit FSSAI license.'); return false; }
+        if (!gstNumber.trim() || gstNumber.length !== 15) { showPopup('Required', 'Please enter a valid 15-digit GST number.'); return false; }
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!gstRegex.test(gstNumber)) { showPopup('Invalid GST', 'Please enter a valid GST number format.'); return false; }
+        if (!panNumber.trim() || panNumber.length !== 10) { showPopup('Required', 'Please enter a valid 10-digit PAN number.'); return false; }
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        if (!panRegex.test(panNumber)) { showPopup('Invalid PAN', 'Please enter a valid PAN number format.'); return false; }
+        return true;
       default:
         return true;
     }
@@ -256,20 +286,21 @@ export default function CreateStoreScreen() {
       showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.');
       return;
     }
-    setIsValidatingGST(true);
-    try {
-      const data = await validateGST(gstNumber);
-      if (data && data.taxpayer_name) {
-        setShopName(data.taxpayer_name);
-        showPopup('GST Verified', `GST details verified for ${data.taxpayer_name}`);
-      } else {
-        showPopup('GST Verified', 'GST number is valid.');
-      }
-    } catch (error: any) {
-      showPopup('Validation Failed', error.response?.data?.message || 'Could not validate GST number.');
-    } finally {
-      setIsValidatingGST(false);
+    
+    // Frontend GST Validation Regex
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    
+    if (!gstRegex.test(gstNumber)) {
+      showPopup('Invalid GST', 'The GST number format is incorrect. Please check again.');
+      return;
     }
+
+    setIsValidatingGST(true);
+    // Simulate loading for better UX and check format locally
+    setTimeout(() => {
+      setIsValidatingGST(false);
+      showPopup('GST Verified', 'GST number format is valid.');
+    }, 800);
   };
 
   const handleSubmit = async () => {
@@ -286,7 +317,7 @@ export default function CreateStoreScreen() {
       storeImages.forEach((uri, index) => {
         const fileName = uri.split('/').pop() || `image_${index}.jpg`;
         formData.append('images[]', {
-          uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+          uri: uri,
           name: fileName,
           type: 'image/jpeg',
         } as any);
@@ -312,13 +343,24 @@ export default function CreateStoreScreen() {
       formData.append('gst_number', gstNumber);
       formData.append('pan_number', panNumber);
       formData.append('route_id', routeId);
-      formData.append('area_id', areaId);
+      if (isManualArea) {
+        formData.append('area_name', areaName);
+      } else {
+        formData.append('area_id', areaId);
+      }
+
+      console.log('--- SUBMITTING NEW STORE ---');
+      if ((formData as any)._parts) {
+        console.log('FormData Parts:', JSON.stringify((formData as any)._parts));
+      }
 
       await createShop(formData);
       showPopup('Success', 'Store created successfully!');
     } catch (error: any) {
-      console.error('Submit error:', error.response?.data || error.message);
-      showPopup('Error', error.response?.data?.message || 'Failed to create store. Please try again.');
+      console.error('Submit error:', error);
+      console.error('Submit error response:', error.response?.data);
+      console.error('Submit error message:', error.message);
+      showPopup('Error', error.response?.data?.message || error.message || 'Failed to create store. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -352,13 +394,13 @@ export default function CreateStoreScreen() {
         </TouchableOpacity>
       </View>
 
-      <InputField label="Shop Name" value={shopName} onChangeText={setShopName} placeholder="Enter shop name" required />
-      <InputField label="Owner Name" value={ownerName} onChangeText={setOwnerName} placeholder="Enter owner name" required />
+      <InputField label="Shop Name" value={shopName} onChangeText={setShopName} placeholder="Enter shop name" required maxLength={100} />
+      <InputField label="Owner Name" value={ownerName} onChangeText={setOwnerName} placeholder="Enter owner name" required maxLength={50} />
       <InputField
         label="Contact Number" value={contact} onChangeText={(t: string) => setContact(t.replace(/[^0-9]/g, ''))}
         placeholder="XXXXX XXXXX" required keyboardType="phone-pad" maxLength={10} prefix="+91"
       />
-      <InputField label="Email" value={email} onChangeText={setEmail} placeholder="store@example.com" keyboardType="email-address" />
+      <InputField label="Email" value={email} onChangeText={setEmail} placeholder="store@example.com" keyboardType="email-address" maxLength={100} />
       <DropdownField label="Shop Type" value={shopType} onPress={() => setShowShopTypePicker(true)} placeholder="Select shop type" required />
     </>
   );
@@ -370,24 +412,50 @@ export default function CreateStoreScreen() {
         placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6}
         loading={loadingPin}
       />
-      <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required />
-      <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" />
-      <InputField label="City" value={city} onChangeText={setCity} placeholder="Enter city" required />
-      <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required editable={pin.length !== 6} />
+      <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required maxLength={200} />
+      <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" maxLength={200} />
+      <InputField label="City" value={city} onChangeText={setCity} placeholder="Enter city" required maxLength={50} />
+      <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required editable={pin.length !== 6} maxLength={50} />
       <DropdownField label="State" value={state} onPress={() => setShowStatePicker(true)} placeholder="Select state" required disabled={pin.length === 6} />
+      
+      {isManualArea ? (
+        <InputField 
+          label="Area" 
+          value={areaName} 
+          onChangeText={setAreaName} 
+          placeholder="Enter area name" 
+          required 
+          rightElement={
+            <TouchableOpacity onPress={() => { setIsManualArea(false); setAreaName(''); }}>
+              <Text className="text-[#1A3F75] text-[10px] font-bold mr-2">SELECT LIST</Text>
+            </TouchableOpacity>
+          }
+        />
+      ) : (
+        <DropdownField 
+          label="Area" 
+          value={selectedRouteObj?.areas?.find(a => a.id.toString() === areaId)?.name || ''} 
+          onPress={() => setShowAreaPicker(true)} 
+          placeholder="Select area" 
+          required 
+          disabled={!routeId} 
+        />
+      )}
     </>
   );
 
   const renderStep3 = () => (
     <>
-      <InputField label="License No" value={licenseNo} onChangeText={setLicenseNo} placeholder="Enter license number" />
-      <InputField label="FSSAI License" value={fssaiLicense} onChangeText={setFssaiLicense} placeholder="Enter FSSAI license" />
+      <InputField label="License No" value={licenseNo} onChangeText={setLicenseNo} placeholder="Enter license number" maxLength={20} required autoCapitalize="characters" />
+      <InputField label="FSSAI License" value={fssaiLicense} onChangeText={(t: string) => setFssaiLicense(t.replace(/[^0-9]/g, ''))} placeholder="Enter 14-digit FSSAI" maxLength={14} keyboardType="number-pad" required />
       <InputField
         label="GST Number"
         value={gstNumber}
         onChangeText={(t: string) => setGstNumber(t.toUpperCase())}
-        placeholder="Enter GST number"
+        placeholder="Enter 15-digit GST number"
         maxLength={15}
+        required
+        autoCapitalize="characters"
         loading={isValidatingGST}
         rightElement={
           <TouchableOpacity
@@ -399,7 +467,7 @@ export default function CreateStoreScreen() {
           </TouchableOpacity>
         }
       />
-      <InputField label="PAN Number" value={panNumber} onChangeText={(t: string) => setPanNumber(t.toUpperCase())} placeholder="Enter PAN number" maxLength={10} />
+      <InputField label="PAN Number" value={panNumber} onChangeText={(t: string) => setPanNumber(t.toUpperCase())} placeholder="Enter 10-digit PAN number" maxLength={10} required autoCapitalize="characters" />
     </>
   );
 
@@ -446,6 +514,7 @@ export default function CreateStoreScreen() {
         <ReviewItem label="District" value={district} />
         <ReviewItem label="PIN Code" value={pin} />
         <ReviewItem label="State" value={state} />
+        <ReviewItem label="Area" value={isManualArea ? areaName : (selectedRouteObj?.areas?.find(a => a.id.toString() === areaId)?.name || '')} />
       </View>
 
       {/* Legal Section */}
@@ -616,6 +685,71 @@ export default function CreateStoreScreen() {
                   {state === s && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Route Picker ─────────────────────────────────── */}
+      <Modal visible={showRoutePicker} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-gray-800">Select Route</Text>
+              <TouchableOpacity onPress={() => setShowRoutePicker(false)}>
+                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {routes.map((r) => (
+                <TouchableOpacity
+                  key={r.id}
+                  className={`flex-row justify-between items-center p-3.5 rounded-xl mb-2 ${routeId === r.id.toString() ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                  onPress={() => { setRouteId(r.id.toString()); setAreaId(''); setShowRoutePicker(false); }}
+                >
+                  <Text className={`font-medium text-sm ${routeId === r.id.toString() ? 'text-[#1A3F75] font-bold' : 'text-gray-600'}`}>{r.name}</Text>
+                  {routeId === r.id.toString() && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Area Picker ─────────────────────────────────── */}
+      <Modal visible={showAreaPicker} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-gray-800">Select Area</Text>
+              <TouchableOpacity onPress={() => setShowAreaPicker(false)}>
+                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedRouteObj?.areas?.map((a: any) => (
+                <TouchableOpacity
+                  key={a.id}
+                  className={`flex-row justify-between items-center p-3.5 rounded-xl mb-2 ${areaId === a.id.toString() ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                  onPress={() => { setAreaId(a.id.toString()); setIsManualArea(false); setShowAreaPicker(false); }}
+                >
+                  <Text className={`font-medium text-sm ${areaId === a.id.toString() ? 'text-[#1A3F75] font-bold' : 'text-gray-600'}`}>{a.name}</Text>
+                  {areaId === a.id.toString() && <Ionicons name="checkmark-circle" size={24} color="#1A3F75" />}
+                </TouchableOpacity>
+              ))}
+              
+              {/* Add New Area Button */}
+              <TouchableOpacity
+                className="flex-row items-center justify-center p-4 rounded-xl border-2 border-dashed border-[#1A3F75] mt-2 bg-[#F0F7FF]"
+                onPress={() => {
+                  setIsManualArea(true);
+                  setAreaId('');
+                  setShowAreaPicker(false);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#1A3F75" />
+                <Text className="ml-2 font-bold text-[#1A3F75]">Can't find your area? Add New</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>

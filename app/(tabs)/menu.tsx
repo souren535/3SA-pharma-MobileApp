@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/store/store';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +41,19 @@ const MENU_ITEMS = [
 export default function MenuScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { logout } = useAuthStore();
+
+  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
+
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    logout();
+    setShowLogoutModal(false);
+    router.replace('/(auth)');
+  };
 
   const renderCard = (item: typeof MENU_ITEMS[0]) => {
     if (item.type === 'profile') {
@@ -122,11 +136,6 @@ export default function MenuScreen() {
               <Text className="text-gray-700 text-sm opacity-90">Configure your workspace</Text>
             </View>
           </View>
-          {/* <View className="flex-row gap-3">
-            <TouchableOpacity className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm">
-              <Ionicons name="settings-outline" size={20} color="#1E293B" />
-            </TouchableOpacity>
-          </View> */}
         </View>
       </LinearGradient>
 
@@ -163,7 +172,7 @@ export default function MenuScreen() {
 
         <TouchableOpacity
           className="mt-8 bg-red-50 rounded-3xl p-5 flex-row items-center justify-center border border-red-100"
-          onPress={() => console.log('Logout')}
+          onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={22} color="#ef4444" />
           <Text className="ml-2 text-red-600 font-bold text-lg">Logout</Text>
@@ -174,6 +183,38 @@ export default function MenuScreen() {
           <Text className="text-[10px] text-slate-500">Built with ❤️ by 3SA Team</Text>
         </View>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutModal}
+        transparent={true}
+        animationType="fade"
+      >
+        <View className="flex-1 bg-black/50 items-center justify-center px-6">
+          <View className="bg-white w-full rounded-[32px] p-8 items-center shadow-xl">
+            <View className="bg-red-50 p-4 rounded-full mb-4">
+              <Ionicons name="log-out" size={32} color="#ef4444" />
+            </View>
+            <Text className="text-2xl font-bold text-slate-900 mb-2">Logout?</Text>
+            <Text className="text-slate-500 text-center mb-8 text-lg">Are you sure you want to log out of your account?</Text>
+            
+            <View className="flex-row w-full gap-3">
+              <TouchableOpacity 
+                className="flex-1 bg-slate-100 py-4 rounded-2xl items-center"
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text className="text-slate-700 font-bold text-lg">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className="flex-1 bg-red-600 py-4 rounded-2xl items-center shadow-sm shadow-red-200"
+                onPress={confirmLogout}
+              >
+                <Text className="text-white font-bold text-lg">Yes, Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
