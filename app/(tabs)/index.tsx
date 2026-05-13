@@ -13,20 +13,22 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { Image } from "expo-image";
 import API from "../../utils/api";
 import { useEffect } from "react";
-import { useShopStore, useRouteStore } from "../../store/store";
+import { useShopStore, useRouteStore, useAttendanceStore, useDashboardStore, useNotificationStore } from "../../store/store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -34,8 +36,11 @@ export default function HomeScreen() {
     year: "numeric",
   });
 
-  // Attendance states
-  const [isWorking, setIsWorking] = useState(false);
+  // Attendance states (global store)
+  const { isWorking, setIsWorking, loadAttendanceState } = useAttendanceStore();
+  const { stats, unvisitedStores, activeStatus, fetchDashboardData } = useDashboardStore();
+  const { notifications, fetchNotifications } = useNotificationStore();
+  const unreadCount = notifications.filter(n => !n.is_read).length;
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -51,19 +56,24 @@ export default function HomeScreen() {
   const lottieRef = useRef<LottieView>(null);
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const [showLottie, setShowLottie] = useState(true);
+  const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
   const { routes, fetchRoutes } = useRouteStore();
 
   useEffect(() => {
     fetchShops();
     fetchRoutes();
+    fetchDashboardData();
+    fetchNotifications();
     // Restore attendance state from storage
-    AsyncStorage.getItem('isWorking').then((val) => {
-      if (val === 'true') {
-        setIsWorking(true);
-      }
-    });
+    loadAttendanceState();
   }, []);
+
+  useEffect(() => {
+    if (activeStatus && activeStatus.is_active !== isWorking) {
+      setIsWorking(activeStatus.is_active);
+    }
+  }, [activeStatus]);
 
   React.useEffect(() => {
     if (isWorking) {
@@ -219,8 +229,7 @@ export default function HomeScreen() {
           headers: { "Content-Type": "multipart/form-data" },
         });
 
-        setIsWorking(true);
-        await AsyncStorage.setItem('isWorking', 'true');
+        await setIsWorking(true);
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
@@ -238,8 +247,7 @@ export default function HomeScreen() {
           headers: { "Content-Type": "multipart/form-data" },
         });
 
-        setIsWorking(false);
-        await AsyncStorage.setItem('isWorking', 'false');
+        await setIsWorking(false);
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
@@ -259,8 +267,7 @@ export default function HomeScreen() {
 
       // If the server says "Already logged in", treat it as a success
       if (attendanceType === 'login' && errorMsg.toLowerCase().includes('already logged in')) {
-        setIsWorking(true);
-        await AsyncStorage.setItem('isWorking', 'true');
+        await setIsWorking(true);
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
@@ -314,9 +321,17 @@ export default function HomeScreen() {
             <Text className="text-[20px] font-extrabold text-white tracking-[0.5px]">
               Delivrise SFA
             </Text>
-            <Text className="text-[13px] text-white/70 font-medium">
-              {formattedDate}
-            </Text>
+            <View className="flex-row items-center">
+              <Text className="text-[13px] text-white/70 font-medium mr-4">
+                {formattedDate}
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/pages/notifucation')} className="relative">
+                <Ionicons name="notifications-outline" size={24} color="white" />
+                {unreadCount > 0 && (
+                  <View className="absolute right-0.5 top-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#1A3F75]" />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* User card */}
@@ -398,13 +413,13 @@ export default function HomeScreen() {
               </Text>
               <View className="flex-row items-baseline">
                 <Text className="text-[26px] font-extrabold text-[#5789D1]">
-                  {shops.length}
+                  {stats?.today_visits || 0}
                 </Text>
                 <Text className="text-[20px] font-normal text-[#94A3B8]">
                   {" "}
                   /{" "}
                 </Text>
-                <Text className="text-[26px] font-extrabold">12</Text>
+                <Text className="text-[26px] font-extrabold">{(stats?.today_visits || 0) + unvisitedStores.length}</Text>
               </View>
               <Text className="text-[12px] font-medium text-[#94A3B8] mt-0.5">
                 Visited Today
@@ -415,10 +430,10 @@ export default function HomeScreen() {
 
         {/* ===== BODY CONTENT ===== */}
         <View className="px-4 -mt-3">
-          {/* Today's Orders Section */}
+          {/* Today's Performance Section */}
           <View className="flex-row justify-between items-center mb-3 mt-8">
             <Text className="text-[17px] font-bold text-[#1E293B]">
-              Today&apos;s Orders
+              Today's Performance
             </Text>
             <TouchableOpacity>
               <MaterialIcons name="chevron-right" size={24} color="#64748B" />
@@ -426,55 +441,55 @@ export default function HomeScreen() {
           </View>
 
           <View className="flex-row justify-between mb-6 gap-[10px]">
-            {/* Pending */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#FFFBEB]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2">
-                <MaterialIcons name="schedule" size={18} color="#D97706" />
-              </View>
-              <Text className="text-[20px] font-extrabold mb-0.5 text-[#D97706]">
-                4
-              </Text>
-              <Text className="text-[11px] font-semibold text-[#64748B]">
-                Pending
-              </Text>
-            </View>
-
-            {/* Delivered */}
+            {/* Sales */}
             <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#ECFDF5]">
               <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#D1FAE5]">
-                <MaterialIcons name="check-circle" size={18} color="#059669" />
+                <MaterialIcons name="trending-up" size={18} color="#059669" />
               </View>
-              <Text className="text-[20px] font-extrabold mb-0.5 text-[#059669]">
-                6
+              <Text className="text-[16px] font-extrabold mb-0.5 text-[#059669]">
+                ₹{stats?.today_sales || 0}
               </Text>
               <Text className="text-[11px] font-semibold text-[#64748B]">
-                Delivered
+                Sales
               </Text>
             </View>
 
-            {/* Orders */}
+            {/* Collection */}
             <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#EFF6FF]">
               <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#DBEAFE]">
-                <MaterialIcons name="inventory" size={18} color="#2563EB" />
+                <MaterialIcons name="account-balance-wallet" size={18} color="#2563EB" />
               </View>
-              <Text className="text-[20px] font-extrabold mb-0.5 text-[#2563EB]">
-                10
+              <Text className="text-[16px] font-extrabold mb-0.5 text-[#2563EB]">
+                ₹{stats?.today_collection || 0}
               </Text>
               <Text className="text-[11px] font-semibold text-[#64748B]">
-                Orders
+                Collected
               </Text>
             </View>
 
-            {/* Cancelled */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#FEF2F2]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#FEE2E2]">
-                <MaterialIcons name="cancel" size={18} color="#DC2626" />
+            {/* Visits */}
+            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#FFFBEB]">
+              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#FEF3C7]">
+                <MaterialIcons name="storefront" size={18} color="#D97706" />
               </View>
-              <Text className="text-[20px] font-extrabold mb-0.5 text-[#DC2626]">
-                2
+              <Text className="text-[16px] font-extrabold mb-0.5 text-[#D97706]">
+                {stats?.today_visits || 0}
               </Text>
               <Text className="text-[11px] font-semibold text-[#64748B]">
-                Cancelled
+                Visits
+              </Text>
+            </View>
+
+            {/* Monthly */}
+            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#F5F3FF]">
+              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#EDE9FE]">
+                <MaterialIcons name="insert-chart" size={18} color="#7C3AED" />
+              </View>
+              <Text className="text-[14px] font-extrabold mb-0.5 text-[#7C3AED]">
+                ₹{(stats?.monthly_sales || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </Text>
+              <Text className="text-[10px] font-semibold text-[#64748B]">
+                Monthly
               </Text>
             </View>
           </View>
@@ -512,23 +527,67 @@ export default function HomeScreen() {
           )}
 
           {/* Visit Next Store */}
-          <TouchableOpacity className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5">
-            <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#EDE9FE]">
-              <MaterialIcons name="store" size={20} color="#7C3AED" />
+          {unvisitedStores.length > 0 && (
+            <View className="bg-white rounded-2xl mb-2.5 shadow-sm shadow-black/5 overflow-hidden">
+              <TouchableOpacity 
+                className="flex-row items-center p-4"
+                onPress={() => setIsNextStoreExpanded(!isNextStoreExpanded)}
+              >
+                <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#EDE9FE]">
+                  <MaterialIcons name="store" size={20} color="#7C3AED" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
+                    Visit Next Store
+                  </Text>
+                  <Text className="text-[12px] font-medium text-[#94A3B8]" numberOfLines={1}>
+                    {unvisitedStores[0].shop_name}, {unvisitedStores[0].address}
+                  </Text>
+                </View>
+                <MaterialIcons 
+                  name={isNextStoreExpanded ? "expand-less" : "expand-more"} 
+                  size={24} 
+                  color="#94A3B8" 
+                />
+              </TouchableOpacity>
+              
+              {isNextStoreExpanded && (
+                <View className="px-4 pb-4 pt-1 border-t border-gray-100">
+                  <View className="flex-row justify-between mb-2">
+                    <Text className="text-gray-500 text-xs font-semibold">Owner:</Text>
+                    <Text className="text-gray-800 text-xs font-bold">{unvisitedStores[0].owner_name}</Text>
+                  </View>
+                  <View className="flex-row justify-between mb-4">
+                    <Text className="text-gray-500 text-xs font-semibold">Contact:</Text>
+                    <Text className="text-gray-800 text-xs font-bold">{unvisitedStores[0].contact}</Text>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    className="bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
+                    onPress={() => {
+                      router.push({
+                        pathname: '/pages/orderCreate',
+                        params: {
+                          storeId: unvisitedStores[0].id.toString(),
+                          storeName: unvisitedStores[0].shop_name,
+                          fromStore: 'true'
+                        }
+                      });
+                    }}
+                  >
+                    <MaterialIcons name="add-shopping-cart" size={18} color="white" />
+                    <Text className="text-white font-bold ml-2 text-sm">Place Order for this Store</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-            <View className="flex-1">
-              <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
-                Visit Next Store
-              </Text>
-              <Text className="text-[12px] font-medium text-[#94A3B8]">
-                Sharma Medical Store, Andheri East
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
-          </TouchableOpacity>
+          )}
 
           {/* Place New Order */}
-          <TouchableOpacity className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5">
+          <TouchableOpacity 
+            className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5"
+            onPress={() => router.push('/pages/orderCreate')}
+          >
             <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#DBEAFE]">
               <MaterialIcons
                 name="add-shopping-cart"

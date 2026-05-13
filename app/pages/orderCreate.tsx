@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useShopStore, useOrderStore, useProductStore, IMAGE_BASE_URL } from "../../store/store";
+import { StatusModal } from "../../components/ui/status-modal";
 
 interface CartItem {
   id: number;
@@ -54,6 +55,7 @@ export default function OrderCreateScreen() {
   const [deliveryDate, setDeliveryDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [modalConfig, setModalConfig] = useState({ visible: false, type: 'info' as 'success'|'error'|'info', title: '', message: '' });
 
   useEffect(() => {
     fetchShops();
@@ -92,11 +94,11 @@ export default function OrderCreateScreen() {
 
   const handlePlaceOrder = async () => {
     if (!selectedStoreId && !storeIdParam) {
-      alert("Please select a store");
+      setModalConfig({ visible: true, type: 'error', title: 'Error', message: 'Please select a store' });
       return;
     }
     if (cart.length === 0) {
-      alert("Please add at least one product");
+      setModalConfig({ visible: true, type: 'error', title: 'Error', message: 'Please add at least one product' });
       return;
     }
 
@@ -111,10 +113,10 @@ export default function OrderCreateScreen() {
 
     try {
       await createOrder(payload);
-      alert("Order placed successfully!");
-      router.back();
+      setModalConfig({ visible: true, type: 'success', title: 'Success', message: 'Order placed successfully!' });
+      setTimeout(() => router.back(), 1500);
     } catch (error) {
-      alert("Failed to place order. Please try again.");
+      setModalConfig({ visible: true, type: 'error', title: 'Failed', message: 'Failed to place order. Please try again.' });
     }
   };
 
@@ -559,6 +561,14 @@ export default function OrderCreateScreen() {
           </View>
         </View>
       </Modal>
+
+      <StatusModal 
+        visible={modalConfig.visible} 
+        onClose={() => setModalConfig({ ...modalConfig, visible: false })}
+        type={modalConfig.type} 
+        title={modalConfig.title} 
+        message={modalConfig.message} 
+      />
     </View>
   );
 }

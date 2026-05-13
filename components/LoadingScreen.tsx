@@ -15,7 +15,7 @@ export default function LoadingScreen({ visible, message = 'Loading...' }: Loadi
       <View style={styles.container}>
         <View style={styles.content}>
           <LottieView
-            source={require('../../assets/animation/Loding.json')}
+            source={require('../assets/animation/Loding.json')}
             autoPlay
             loop
             style={styles.lottie}

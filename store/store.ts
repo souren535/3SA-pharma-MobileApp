@@ -30,6 +30,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login: async (email, password) => {
     const data = await authService.login(email, password);
     await AsyncStorage.setItem("token", data.access_token);
+    if (data.refresh_token) {
+      await AsyncStorage.setItem("refresh_token", data.refresh_token);
+    }
     set({ token: data.access_token });
     try {
       const profile = await authService.getProfile();
@@ -41,6 +44,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   logout: async () => {
     await authService.logout();
     await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("refresh_token");
     get().reset();
   },
   checkAuth: async () => {
@@ -247,7 +251,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   fetchShopOrders: async (shopId) => {
     set({ isLoading: true });
     try {
-      const response = await API.get(`/orders/shop/${shopId}`);
+      const response = await API.get(`/orders/shop-orders/${shopId}`);
       const data = response.data.data || response.data;
       set({ shopOrders: Array.isArray(data) ? data : [] });
     } catch (error) {
@@ -347,12 +351,12 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await API.get(`/orders/shop/${shopId}/ledger`);
-      
+
       const responseData = response.data.data ? response.data.data : response.data;
 
       // The API returns a flat array of transactions
       const transactions = responseData.transactions || [];
-      
+
       const formattedLedger: LedgerEntry[] = transactions.map((t: any) => ({
         id: `${t.type}_${t.id}`, // Ensure unique ID
         type: t.type === 'invoice' ? 'Order' : 'Payment', // Map to UI expected types
@@ -366,7 +370,7 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
       // Ensure they are sorted by date descending (though API likely does this)
       formattedLedger.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-      set({ 
+      set({
         ledger: formattedLedger,
         summary: responseData.summary || null
       });
@@ -379,12 +383,214 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
   collectPayment: async (shopId, payload) => {
     set({ isSubmitting: true });
     try {
-      const response = await API.post(`/orders/shop/${shopId}/collect-payment`, payload);
+      const response = await API.post(`/orders/collect-shop-payment/${shopId}`, payload);
       // Refresh ledger after payment
       await get().fetchLedger(shopId);
       return response.data;
     } finally {
       set({ isSubmitting: false });
+    }
+  }
+}));
+
+// ─── Attendance Store ────────────────────────────────
+interface AttendanceStore {
+  isWorking: boolean;
+  setIsWorking: (value: boolean) => Promise<void>;
+  loadAttendanceState: () => Promise<void>;
+}
+
+export const useAttendanceStore = create<AttendanceStore>((set) => ({
+  isWorking: false,
+  setIsWorking: async (value: boolean) => {
+    set({ isWorking: value });
+    await AsyncStorage.setItem('isWorking', value ? 'true' : 'false');
+  },
+  loadAttendanceState: async () => {
+    const val = await AsyncStorage.getItem('isWorking');
+    set({ isWorking: val === 'true' });
+  },
+}));
+
+// ─── Payment Store ───────────────────────────────────
+export interface PaymentHistoryItem {
+  id: number;
+  order_id: number;
+  user_id: number;
+  amount: string;
+  payment_mode: string;
+  reference_no: string | null;
+  payment_date: string;
+  created_at: string;
+  order?: {
+    id: number;
+    order_no: string;
+    total_amount: string;
+    shop?: {
+      shop_name: string;
+    };
+  };
+}
+
+interface PaymentStore {
+  paymentsHistory: PaymentHistoryItem[];
+  isLoading: boolean;
+  fetchPaymentsHistory: () => Promise<void>;
+}
+
+export const usePaymentStore = create<PaymentStore>((set) => ({
+  paymentsHistory: [],
+  isLoading: false,
+  fetchPaymentsHistory: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await API.get('/orders/payments/history');
+      const data = response.data?.data || [];
+      set({ paymentsHistory: Array.isArray(data) ? data : [] });
+    } catch (error) {
+      console.error("Failed to fetch payments history:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  }
+}));
+
+// ─── Dashboard Store ─────────────────────────────────
+export interface DashboardStats {
+  today_sales: number;
+  today_collection: number;
+  today_visits: number;
+  monthly_sales: number;
+}
+
+export interface ActiveStatus {
+  is_active: boolean;
+  check_in_time: string | null;
+}
+
+interface DashboardStore {
+  stats: DashboardStats | null;
+  unvisitedStores: any[];
+  activeStatus: ActiveStatus | null;
+  isLoading: boolean;
+  fetchDashboardData: () => Promise<void>;
+}
+
+export const useDashboardStore = create<DashboardStore>((set) => ({
+  stats: null,
+  unvisitedStores: [],
+  activeStatus: null,
+  isLoading: false,
+  fetchDashboardData: async () => {
+    set({ isLoading: true });
+    try {
+      const [statsRes, unvisitedRes, activeRes] = await Promise.all([
+        API.get('/dashboard/stats'),
+        API.get('/dashboard/unvisited-stores'),
+        API.get('/dashboard/active-status')
+      ]);
+
+      set({
+        stats: statsRes.data,
+        unvisitedStores: unvisitedRes.data,
+        activeStatus: activeRes.data
+      });
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  }
+}));
+
+// ─── Visit Store ─────────────────────────────────────
+export interface VisitItem {
+  id: number;
+  user_id: number;
+  shop_id: number;
+  visit_type: string;
+  notes: string;
+  latitude: string;
+  longitude: string;
+  created_at: string;
+  shop?: {
+    id: number;
+    shop_name: string;
+    owner_name: string;
+    contact: string;
+    address: string;
+  };
+}
+
+interface VisitStore {
+  visits: VisitItem[];
+  isLoading: boolean;
+  fetchVisits: () => Promise<void>;
+}
+
+export const useVisitStore = create<VisitStore>((set) => ({
+  visits: [],
+  isLoading: false,
+  fetchVisits: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await API.get('/orders/visits');
+      const data = response.data?.data || [];
+      set({ visits: Array.isArray(data) ? data : [] });
+    } catch (error) {
+      console.error("Failed to fetch visits:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  }
+}));
+
+// ─── Notification Store ──────────────────────────────
+export interface NotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  image: string | null;
+  target_type: string;
+  user_id: number | null;
+  created_by: number;
+  is_read: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface NotificationStore {
+  notifications: NotificationItem[];
+  isLoading: boolean;
+  fetchNotifications: () => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+}
+
+export const useNotificationStore = create<NotificationStore>((set, get) => ({
+  notifications: [],
+  isLoading: false,
+  fetchNotifications: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await API.get('/notifications');
+      const data = response.data?.data || response.data || [];
+      set({ notifications: Array.isArray(data) ? data : [] });
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  markAsRead: async (id: number) => {
+    try {
+      await API.post(`/notifications/${id}/read`);
+      // Update locally
+      const current = get().notifications;
+      set({
+        notifications: current.map(n => n.id === id ? { ...n, is_read: true } : n)
+      });
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
     }
   }
 }));

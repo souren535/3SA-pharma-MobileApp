@@ -4,7 +4,10 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStoreDetailStore, useOrderStore, useLedgerStore, IMAGE_BASE_URL } from '../../store/store';
+import * as Location from 'expo-location';
+import API from '../../utils/api';
+import { useStoreDetailStore, useOrderStore, useLedgerStore, IMAGE_BASE_URL, useAttendanceStore } from '../../store/store';
+import AttendanceGate from '../../components/AttendanceGate';
 
 type TabName = 'Orders' | 'Transaction' | 'Info';
 
@@ -20,6 +23,8 @@ export default function StoreInfoScreen() {
   const { shopDetail, fetchShopDetail, isLoading: detailLoading } = useStoreDetailStore();
   const { shopOrders, fetchShopOrders, isLoading: ordersLoading } = useOrderStore();
   const { ledger, summary, fetchLedger, collectPayment, isLoading: ledgerLoading, isSubmitting } = useLedgerStore();
+  const { isWorking } = useAttendanceStore();
+  const [showAttendanceGate, setShowAttendanceGate] = useState(false);
 
   // Fetch data on mount
   useEffect(() => {
@@ -55,6 +60,7 @@ export default function StoreInfoScreen() {
   // Modal states
   const [showVisitNoteModal, setShowVisitNoteModal] = useState(false);
   const [visitNoteText, setVisitNoteText] = useState('');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
   const [popupTitle, setPopupTitle] = useState('');
   const [popupMessage, setPopupMessage] = useState('');
@@ -378,7 +384,7 @@ export default function StoreInfoScreen() {
             className="flex-row items-center bg-white py-2 px-4 rounded-full shadow-md"
             onPress={() => {
               setIsFabOpen(false);
-              router.push({ pathname: '/pages/orderCreate', params: { storeName, storeCategory, storeContact, storeImage, fromStore: 'true' } });
+              router.push({ pathname: '/pages/orderCreate', params: { storeId, storeName, storeCategory, storeContact, storeImage, fromStore: 'true' } });
             }}
           >
             <Text className="mr-2 text-[#1A3F75] font-bold">Create Order</Text>
@@ -407,6 +413,10 @@ export default function StoreInfoScreen() {
         <TouchableOpacity
           className="absolute bottom-10 right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
           onPress={() => {
+            if (!isWorking) {
+              setShowAttendanceGate(true);
+              return;
+            }
             if (activeTab === 'Orders') {
               setIsFabOpen(!isFabOpen);
             } else if (activeTab === 'Transaction') {
@@ -421,6 +431,9 @@ export default function StoreInfoScreen() {
           )}
         </TouchableOpacity>
       )}
+
+      {/* Attendance Gate Modal */}
+      <AttendanceGate visible={showAttendanceGate} onClose={() => setShowAttendanceGate(false)} />
 
       {/* ===== CREATE TRANSACTION MODAL ===== */}
       <Modal visible={showTransactionModal} animationType="slide" transparent>
@@ -596,19 +609,48 @@ export default function StoreInfoScreen() {
             />
 
             <TouchableOpacity
-              className="bg-[#1A3F75] py-3.5 rounded-2xl items-center shadow-md"
-              onPress={() => {
+              className={`bg-[#1A3F75] py-3.5 rounded-2xl items-center shadow-md ${isSubmittingNote ? 'opacity-70' : ''}`}
+              disabled={isSubmittingNote}
+              onPress={async () => {
                 if (visitNoteText.trim()) {
-                  console.log('Visit Note:', visitNoteText);
-                  setShowVisitNoteModal(false);
-                  setVisitNoteText('');
-                  showPopup('Success', 'Visit note submitted successfully!');
+                  setIsSubmittingNote(true);
+                  try {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    let lat = "0.000000";
+                    let lng = "0.000000";
+                    if (status === 'granted') {
+                      const location = await Location.getCurrentPositionAsync({});
+                      lat = location.coords.latitude.toString();
+                      lng = location.coords.longitude.toString();
+                    }
+
+                    await API.post('/orders/visits', {
+                      shop_id: parseInt(storeId),
+                      visit_type: 'nil',
+                      notes: visitNoteText,
+                      latitude: lat,
+                      longitude: lng
+                    });
+
+                    setShowVisitNoteModal(false);
+                    setVisitNoteText('');
+                    showPopup('Success', 'Visit note submitted successfully!');
+                  } catch (error) {
+                    console.error("Failed to submit visit note:", error);
+                    showPopup('Error', 'Failed to submit visit note. Please try again.');
+                  } finally {
+                    setIsSubmittingNote(false);
+                  }
                 } else {
                   showPopup('Required', 'Please enter a visit note before submitting.');
                 }
               }}
             >
-              <Text className="text-white text-[15px] font-bold">Submit Note</Text>
+              {isSubmittingNote ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white text-[15px] font-bold">Submit Note</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

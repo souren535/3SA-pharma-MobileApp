@@ -4,7 +4,7 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useShopStore, IMAGE_BASE_URL } from '../../store/store';
+import { useShopStore, IMAGE_BASE_URL, useAttendanceStore } from '../../store/store';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { ActivityIndicator, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -49,6 +49,7 @@ export default function StoresScreen() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const { isWorking } = useAttendanceStore();
 
   const monthDates = useMemo(() => getDatesForMonth(selectedMonth, selectedYear), [selectedMonth, selectedYear]);
 
@@ -108,6 +109,25 @@ export default function StoresScreen() {
         </View>
       </LinearGradient>
 
+      {/* Attendance Required Screen */}
+      {!isWorking ? (
+        <View className="flex-1 items-center justify-center px-10">
+          <View className="w-24 h-24 bg-[#FEF3C7] rounded-full items-center justify-center mb-5">
+            <MaterialIcons name="fingerprint" size={48} color="#D97706" />
+          </View>
+          <Text className="text-gray-800 text-xl font-bold mb-2 text-center">Attendance Required</Text>
+          <Text className="text-gray-500 text-center text-sm leading-5 mb-6">
+            Please mark your attendance on the Home screen to view and manage stores.
+          </Text>
+          <TouchableOpacity
+            className="bg-[#D97706] px-8 py-3.5 rounded-2xl shadow-md"
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Text className="text-white font-bold text-sm">Go to Home</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+      <>
       {/* Fixed Date Filter */}
       {false && (
       <View className="bg-[#F3F6F8]">
@@ -223,6 +243,8 @@ export default function StoresScreen() {
       >
         <Feather name="plus" size={26} color="white" />
       </TouchableOpacity>
+      </>
+      )}
 
       {/* Month Picker Modal */}
       <Modal visible={showMonthPicker} animationType="slide" transparent>

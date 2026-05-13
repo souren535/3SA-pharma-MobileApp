@@ -8,6 +8,9 @@ export const authService = {
       password,
     });
     await AsyncStorage.setItem("token", data.access_token);
+    if (data.refresh_token) {
+      await AsyncStorage.setItem("refresh_token", data.refresh_token);
+    }
     return data;
   },
   register: async (data: any) => {
@@ -17,9 +20,11 @@ export const authService = {
   logout: async () => {
     await API.post("/auth/logout");
     await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("refresh_token");
   },
   getProfile: async () => {
     const { data } = await API.get("/auth/profile");
     return data;
   },
 };
+

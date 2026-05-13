@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Dimensions, Platform, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore } from '@/store/store';
+import { useAuthStore, useAttendanceStore } from '@/store/store';
 
 const { width } = Dimensions.get('window');
 
@@ -36,12 +36,21 @@ const MENU_ITEMS = [
     gradient: ['#ec4899', '#db2777'] as const,
     route: '/pages/support' as const,
   },
+  {
+    id: 'visits',
+    title: 'Visit History',
+    subtitle: 'View all your store visits',
+    icon: 'location-outline',
+    gradient: ['#10b981', '#059669'] as const,
+    route: '/pages/visits' as const,
+  },
 ];
 
 export default function MenuScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { logout } = useAuthStore();
+  const { isWorking } = useAttendanceStore();
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
@@ -145,30 +154,50 @@ export default function MenuScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
       >
 
-        {MENU_ITEMS.map(renderCard)}
-
-        <View className="mt-6 mb-4">
-          <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-3">Preferences</Text>
-
-          <TouchableOpacity
-            className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm"
-            onPress={() => router.push('/pages/notifucation')}
-          >
-            <View className="bg-indigo-50 p-2 rounded-xl mr-3">
-              <Ionicons name="notifications-outline" size={20} color="#6366f1" />
+        {/* Attendance Warning Banner */}
+        {!isWorking && (
+          <View className="bg-[#FEF3C7] rounded-2xl p-4 mb-4 flex-row items-center border border-[#FDE68A]">
+            <View className="bg-[#F59E0B] p-2 rounded-xl mr-3">
+              <Ionicons name="warning" size={20} color="white" />
             </View>
-            <Text className="flex-1 text-slate-700 font-medium">Notifications</Text>
-            <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm">
-            <View className="bg-indigo-50 p-2 rounded-xl mr-3">
-              <Ionicons name="shield-checkmark-outline" size={20} color="#6366f1" />
+            <View className="flex-1">
+              <Text className="text-[#92400E] font-bold text-sm">Attendance Not Marked</Text>
+              <Text className="text-[#B45309] text-xs mt-0.5">Mark attendance to unlock all features</Text>
             </View>
-            <Text className="flex-1 text-slate-700 font-medium">Security</Text>
-            <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
+
+        {/* Always show profile card */}
+        {MENU_ITEMS.filter(item => item.id === 'profile').map(renderCard)}
+
+        {/* Show other menu items only when attendance is marked */}
+        {isWorking && MENU_ITEMS.filter(item => item.id !== 'profile').map(renderCard)}
+
+        {/* Preferences - only when attendance is marked */}
+        {isWorking && (
+          <View className="mt-6 mb-4">
+            <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-3">Preferences</Text>
+
+            <TouchableOpacity
+              className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm"
+              onPress={() => router.push('/pages/notifucation')}
+            >
+              <View className="bg-indigo-50 p-2 rounded-xl mr-3">
+                <Ionicons name="notifications-outline" size={20} color="#6366f1" />
+              </View>
+              <Text className="flex-1 text-slate-700 font-medium">Notifications</Text>
+              <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+            </TouchableOpacity>
+
+            <TouchableOpacity className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm">
+              <View className="bg-indigo-50 p-2 rounded-xl mr-3">
+                <Ionicons name="shield-checkmark-outline" size={20} color="#6366f1" />
+              </View>
+              <Text className="flex-1 text-slate-700 font-medium">Security</Text>
+              <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <TouchableOpacity
           className="mt-8 bg-red-50 rounded-3xl p-5 flex-row items-center justify-center border border-red-100"

@@ -4,7 +4,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useOrderStore } from '../../store/store';
+import { useOrderStore, useAttendanceStore } from '../../store/store';
 
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -20,6 +20,7 @@ export default function OrdersScreen() {
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const { isWorking } = useAttendanceStore();
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -102,6 +103,25 @@ export default function OrdersScreen() {
         </View>
       </LinearGradient>
 
+      {/* Attendance Required Screen */}
+      {!isWorking ? (
+        <View className="flex-1 items-center justify-center px-10">
+          <View className="w-24 h-24 bg-[#FEF3C7] rounded-full items-center justify-center mb-5">
+            <Ionicons name="finger-print" size={48} color="#D97706" />
+          </View>
+          <Text className="text-gray-800 text-xl font-bold mb-2 text-center">Attendance Required</Text>
+          <Text className="text-gray-500 text-center text-sm leading-5 mb-6">
+            Please mark your attendance on the Home screen to view and manage orders.
+          </Text>
+          <TouchableOpacity
+            className="bg-[#D97706] px-8 py-3.5 rounded-2xl shadow-md"
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Text className="text-white font-bold text-sm">Go to Home</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+      <>
       {/* Fixed Date Filter */}
       <View className="bg-[#F3F6F8]">
         <View className="flex-row justify-end px-5 mt-3">
@@ -201,6 +221,8 @@ export default function OrdersScreen() {
       >
         <Feather name="plus" size={26} color="white" />
       </TouchableOpacity>
+      </>
+      )}
 
       {/* Month Picker Modal */}
       <Modal visible={showMonthPicker} animationType="fade" transparent>

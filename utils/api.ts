@@ -50,25 +50,21 @@ API.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const token = await AsyncStorage.getItem("token");
-        console.log("Attempting token refresh...");
-        const refreshResponse = await axios.post(
-          `${process.env.EXPO_PUBLIC_BASE_URL}/auth/refresh`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const newToken = refreshResponse.data?.refresh_token;
-        if (newToken) {
-          console.log("Token refreshed successfully");
-          await AsyncStorage.setItem("token", newToken);
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          processQueue(null, newToken);
+        const refreshToken = await AsyncStorage.getItem("refresh_token");
+        console.log("Substituting token with stored refresh_token directly...");
+        if (refreshToken) {
+          await AsyncStorage.setItem("token", refreshToken);
+          originalRequest.headers.Authorization = `Bearer ${refreshToken}`;
+          processQueue(null, refreshToken);
           return API(originalRequest);
+        } else {
+          throw new Error("No refresh token stored");
         }
       } catch (refreshError) {
-        console.log("Token refresh failed, clearing session");
+        console.log("Token substitution failed, clearing session");
         processQueue(refreshError, null);
         await AsyncStorage.removeItem("token");
+        await AsyncStorage.removeItem("refresh_token");
         await AsyncStorage.removeItem("isWorking");
         // Navigate to login
         try { router.replace("/(auth)"); } catch {}

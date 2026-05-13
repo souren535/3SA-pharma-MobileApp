@@ -1,22 +1,56 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const payments = [
-  { id: 1, type: 'Payment', date: '04 APR 2026', desc: 'Transaction Successful', store: 'Sri Hari Medicine Center', amount: '+ Rs. 8760', status: 'Success' },
-  { id: 2, type: 'Payment', date: '04 APR 2026', desc: 'UPI Transaction', store: 'Narmada Medical', amount: '+ Rs. 1260', status: 'Success' },
-  { id: 3, type: 'Payment', date: '03 APR 2026', desc: 'Card Payment', store: 'Krishna Medical Stores', amount: '+ Rs. 4500', status: 'Pending' },
-  { id: 4, type: 'Payment', date: '02 APR 2026', desc: 'Net Banking', store: 'MedPlus Pharmacy', amount: '+ Rs. 2300', status: 'Success' },
-  { id: 5, type: 'Payment', date: '01 APR 2026', desc: 'Wallet Payment', store: 'Apollo Medical Shop', amount: '+ Rs. 1100', status: 'Failed' },
-  { id: 6, type: 'Payment', date: '30 MAR 2026', desc: 'Cash on Delivery', store: 'Wellness Pharma Hub', amount: '+ Rs. 500', status: 'Success' },
-];
+import { usePaymentStore } from '../../store/store';
 
 export default function PaymentScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { paymentsHistory, isLoading, fetchPaymentsHistory } = usePaymentStore();
+
+  useEffect(() => {
+    fetchPaymentsHistory();
+  }, []);
+
+  // Format payments for rendering
+  const paymentsList = paymentsHistory.map((item) => {
+    const storeName = item.order?.shop?.shop_name || 'Unknown Store';
+    const orderNo = item.order?.order_no || '';
+    const dateObj = new Date(item.payment_date || item.created_at);
+    const formattedDate = dateObj.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).toUpperCase();
+
+    const amtNum = parseFloat(item.amount) || 0;
+
+    return {
+      id: item.id,
+      orderId: item.order_id,
+      type: 'Payment Collection',
+      date: formattedDate,
+      desc: `${item.payment_mode || 'Cash'} Payment ${item.reference_no ? `(${item.reference_no})` : ''}`,
+      store: storeName,
+      amountNum: amtNum,
+      amount: `+ Rs. ${amtNum.toFixed(2)}`,
+      status: 'Success',
+      orderNo: orderNo,
+    };
+  });
+
+  // Calculate stats
+  const totalCollected = paymentsList.reduce((sum, item) => sum + item.amountNum, 0);
+  const totalCollections = paymentsList.length;
+  const avgCollection = totalCollections > 0 ? totalCollected / totalCollections : 0;
+
+  // Sort descending by ID/date to get the last payment first
+  const sortedPayments = [...paymentsList].sort((a, b) => b.id - a.id);
+  const lastPaymentAmount = sortedPayments.length > 0 ? sortedPayments[0].amountNum : 0;
+  const lastPaymentDate = sortedPayments.length > 0 ? sortedPayments[0].date : '-';
 
   return (
     <View style={styles.container}>
@@ -47,8 +81,8 @@ export default function PaymentScreen() {
             >
               <View className="flex-row justify-between items-center mb-4">
                  <View className='rounded-2xl bg-white/20 p-3'>
-                   <Text className="text-white/70 text-xs font-bold uppercase tracking-wider">Total Outstanding</Text>
-                   <Text className="text-white text-3xl font-bold mt-1">Rs. 24,500</Text>
+                   <Text className="text-white/70 text-xs font-bold uppercase tracking-wider">Total Collected</Text>
+                   <Text className="text-white text-3xl font-bold mt-1">Rs. {totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</Text>
                  </View>
                  <View className="bg-white/20 p-3 rounded-2xl">
                    <Ionicons name="wallet-outline" size={28} color="white" />
@@ -57,11 +91,11 @@ export default function PaymentScreen() {
               <View className="flex-row justify-between border-t border-white/10 pt-4">
                  <View>
                    <Text className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Last Payment</Text>
-                   <Text className="text-white font-bold text-sm">Rs. 8,760.00</Text>
+                   <Text className="text-white font-bold text-sm">Rs. {lastPaymentAmount.toFixed(2)}</Text>
                  </View>
                  <View className="items-end">
                    <Text className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Date</Text>
-                   <Text className="text-white font-bold text-sm">04 Apr 2026</Text>
+                   <Text className="text-white font-bold text-sm">{lastPaymentDate}</Text>
                  </View>
               </View>
             </LinearGradient>
@@ -73,50 +107,71 @@ export default function PaymentScreen() {
              <View className="w-10 h-10 bg-green-50 rounded-xl items-center justify-center mb-3">
                <Ionicons name="stats-chart" size={20} color="#47B8A0" />
              </View>
-             <Text className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Transactions</Text>
-             <Text className="text-gray-800 text-lg font-bold">128</Text>
+             <Text className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Total Collections</Text>
+             <Text className="text-gray-800 text-lg font-bold">{totalCollections}</Text>
            </View>
            <View className="bg-white rounded-2xl p-4 flex-1 ml-2 shadow-sm border border-gray-100">
              <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mb-3">
                <Ionicons name="trending-up" size={20} color="#1A3F75" />
              </View>
-             <Text className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Success Rate</Text>
-             <Text className="text-gray-800 text-lg font-bold">98.5%</Text>
+             <Text className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Avg Collection</Text>
+             <Text className="text-gray-800 text-lg font-bold">Rs. {avgCollection.toFixed(0)}</Text>
            </View>
         </View>
 
         <Text className="px-5 mb-4 text-gray-800 font-bold text-[17px]">Recent Transactions</Text>
-        {payments.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
-            onPress={() => router.push({
-              pathname: '/pages/orderDetails',
-              params: { ...item, isOrder: 'false' }
-            })}
-          >
-            {/* Circle Icon */}
-            <View className={`w-12 h-12 rounded-full items-center justify-center ${item.status === 'Success' ? 'bg-[#47B8A0]' : item.status === 'Pending' ? 'bg-orange-400' : 'bg-red-400'}`}>
-              <Ionicons name={item.status === 'Success' ? 'checkmark' : item.status === 'Pending' ? 'time' : 'close'} size={20} color="white" />
-            </View>
-
-            {/* Content */}
-            <View className="flex-1 ml-4">
-              <View className="flex-row justify-between items-start">
-                <Text className="text-[15px] font-bold text-gray-800">{item.type}</Text>
-                <Text className={`text-xs font-bold ${item.status === 'Success' ? 'text-[#3AA58E]' : item.status === 'Pending' ? 'text-orange-500' : 'text-red-500'}`}>{item.amount}</Text>
+        
+        {isLoading ? (
+          <View className="py-12 items-center justify-center">
+            <ActivityIndicator size="large" color="#1A3F75" />
+            <Text className="text-gray-400 text-xs mt-3 font-medium">Loading history...</Text>
+          </View>
+        ) : sortedPayments.length === 0 ? (
+          <View className="py-12 items-center justify-center">
+            <Text className="text-gray-400 text-sm font-medium">No transaction history found</Text>
+          </View>
+        ) : (
+          sortedPayments.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center border border-gray-50"
+              onPress={() => router.push({
+                pathname: '/pages/orderDetails',
+                params: { 
+                  id: item.id,
+                  type: item.type,
+                  date: item.date,
+                  desc: item.desc,
+                  store: item.store,
+                  amount: item.amount,
+                  orderNo: item.orderNo,
+                  isOrder: 'false' 
+                }
+              })}
+            >
+              {/* Circle Icon */}
+              <View className="w-12 h-12 rounded-full items-center justify-center bg-[#47B8A0]">
+                <Ionicons name="checkmark" size={20} color="white" />
               </View>
-              <Text className="text-xs text-gray-600 mt-1">Date : {item.date}</Text>
-              <Text className="text-xs text-gray-600 mt-0.5">{item.desc}</Text>
-              <Text className="text-xs font-semibold text-[#3AA58E] mt-1">({item.store})</Text>
-            </View>
 
-            {/* Arrow */}
-            <View className="ml-2 justify-center">
-              <Ionicons name="caret-forward" size={14} color="#A0AEC0" />
-            </View>
-          </TouchableOpacity>
-        ))}
+              {/* Content */}
+              <View className="flex-1 ml-4">
+                <View className="flex-row justify-between items-start">
+                  <Text className="text-[15px] font-bold text-gray-800">{item.type}</Text>
+                  <Text className="text-xs font-bold text-[#3AA58E]">{item.amount}</Text>
+                </View>
+                <Text className="text-xs text-gray-600 mt-1">Date : {item.date}</Text>
+                <Text className="text-xs text-gray-600 mt-0.5">{item.desc}</Text>
+                <Text className="text-xs font-semibold text-[#3AA58E] mt-1" numberOfLines={1}>({item.store})</Text>
+              </View>
+
+              {/* Arrow */}
+              <View className="ml-2 justify-center">
+                <Ionicons name="caret-forward" size={14} color="#A0AEC0" />
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </View>
   );
