@@ -314,17 +314,15 @@ export default function CreateStoreScreen() {
     try {
       const formData = new FormData();
 
-      // Append images
       storeImages.forEach((uri, index) => {
         const fileName = uri.split('/').pop() || `image_${index}.jpg`;
         formData.append('images[]', {
-          uri: uri,
+          uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
           name: fileName,
           type: 'image/jpeg',
         } as any);
       });
 
-      // Basic info
       formData.append('shop_name', shopName);
       formData.append('owner_name', ownerName);
       formData.append('contact', contact);
@@ -332,29 +330,24 @@ export default function CreateStoreScreen() {
       formData.append('shop_type', shopType);
       formData.append('category', category);
 
-      // Address info
       const fullAddress = `${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${district}, ${state} - ${pin}`;
       formData.append('address', fullAddress);
       formData.append('latitude', String(location.latitude));
       formData.append('longitude', String(location.longitude));
 
-      // Legal info
       formData.append('license_no', licenseNo);
       formData.append('fassai_license', fssaiLicense);
       formData.append('gst_number', gstNumber);
       formData.append('pan_number', panNumber);
       formData.append('route_id', routeId);
+      
       if (isManualArea) {
         formData.append('area_name', areaName);
       } else {
         formData.append('area_id', areaId);
       }
 
-      console.log('--- SUBMITTING NEW STORE ---');
-      if ((formData as any)._parts) {
-        console.log('FormData Parts:', JSON.stringify((formData as any)._parts));
-      }
-
+      console.log('--- SUBMITTING NEW STORE WITH FETCH ---');
       await createShop(formData);
       showPopup('Success', 'Store created successfully!');
     } catch (error: any) {
@@ -377,7 +370,7 @@ export default function CreateStoreScreen() {
       <View className="flex-row flex-wrap mb-5">
         {storeImages.map((uri, index) => (
           <View key={index} className="mr-2 mb-2 relative">
-            <Image source={{ uri }} className="w-20 h-20 rounded-xl bg-gray-200" resizeMode="cover" />
+            <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#E5E7EB' }} resizeMode="cover" />
             <TouchableOpacity
               className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full items-center justify-center"
               onPress={() => removeImage(index)}
@@ -480,7 +473,7 @@ export default function CreateStoreScreen() {
           <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Store Images</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {storeImages.map((uri, i) => (
-              <Image key={i} source={{ uri }} className="w-16 h-16 rounded-lg mr-2 bg-gray-200" resizeMode="cover" />
+              <Image key={i} source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8, marginRight: 8, backgroundColor: '#E5E7EB' }} resizeMode="cover" />
             ))}
           </ScrollView>
         </View>
