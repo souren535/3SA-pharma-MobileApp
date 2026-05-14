@@ -81,7 +81,7 @@ export default function MenuScreen() {
           key={item.id}
           className="bg-white rounded-[32px] p-6 mb-4 shadow-sm border border-slate-100 flex-row items-center"
           activeOpacity={0.7}
-          onPress={() => item.route && router.push(item.route)}
+          // onPress={() => item.route && router.push(item.route)}
         >
           <Image
             source={{ uri: item.image }}
