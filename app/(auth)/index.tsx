@@ -9,8 +9,9 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import Svg, { Path } from "react-native-svg";
@@ -27,6 +28,24 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true)
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
   const [modalConfig, setModalConfig] = useState({
     visible: false,
     type: "error" as "error" | "success" | "info",
@@ -69,28 +88,44 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
       <StatusBar style="dark" />
+      <View style={{ flex: 1 }}>
+        {/* Fixed Background Bottom View */}
+        <View className="absolute bottom-0 left-0 w-full h-40" pointerEvents="none">
+          <View
+          className="absolute bottom-[-90px] left-[-20px] w-40 h-40 bg-[#90B0C7]/50 rounded-[20px] ml-20"
+          style={{ transform: [{ rotate: "-15deg" }] }}
+        />
+        <View
+          className="absolute bottom-[-70px] left-[-30px] w-40 h-40 bg-[#90B0C7] rounded-[20px]"
+          style={{ transform: [{ rotate: "-17deg" }] }}
+        />
+      </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Top Section - Logo & Branding */}
-          <View style={{ alignItems: "center", paddingTop: 10 }}>
+          <View style={{ alignItems: "center", paddingTop: isKeyboardVisible ? 0 : 10 }}>
             <Image
-              source={require("../../assets/images/delivery-icon.png")}
-              style={{ width: 200, height: 200 }}
+              source={require("../../assets/images/favicon.png")}
+              style={{ 
+                width: isKeyboardVisible ? 100 : 200, 
+                height: isKeyboardVisible ? 100 : 200 
+              }}
               contentFit="contain"
             />
             <Text
               style={{
                 fontFamily: "Lobster",
-                fontSize: 100,
+                fontSize: isKeyboardVisible ? 50 : 100,
                 color: "#1A3F75",
-                marginTop: -35,
+                marginTop: isKeyboardVisible ? -15 : -35,
               }}
             >
               Delivery
@@ -98,7 +133,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Welcome Text */}
-          <View style={{ alignItems: "center", marginTop: -10 }}>
+          <View style={{ alignItems: "center", marginTop: isKeyboardVisible ? 0 : -10 }}>
             <Text
               className="tracking-wider"
               style={{
@@ -221,19 +256,9 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          <View style={{ flex: 1 }} />
-          <View className="absolute bottom-0 left-0 w-full h-40">
-            <View
-              className="absolute bottom-[-70px] left-[-20px] w-40 h-40 bg-[#90B0C7]/50 rounded-[20px] ml-20"
-              style={{ transform: [{ rotate: "-15deg" }] }}
-            />
-            <View
-              className="absolute bottom-[-40px] left-[-30px] w-40 h-40 bg-[#90B0C7] rounded-[20px]"
-              style={{ transform: [{ rotate: "-17deg" }] }}
-            />
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      </View>
       <StatusModal
         visible={modalConfig.visible}
         type={modalConfig.type}
