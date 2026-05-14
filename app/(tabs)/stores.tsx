@@ -1,12 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, ActivityIndicator, Modal, Alert } from 'react-native';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useShopStore, IMAGE_BASE_URL, useAttendanceStore } from '../../store/store';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { ActivityIndicator, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 // Helper to get local YYYY-MM-DD string
@@ -21,7 +20,7 @@ const getLocalDateString = (date: Date) => {
 const getDatesForMonth = (monthIndex: number, year: number) => {
   const dates = [];
   const numDays = new Date(year, monthIndex + 1, 0).getDate();
-  
+
   for (let i = 1; i <= numDays; i++) {
     const date = new Date(year, monthIndex, i);
     dates.push({
@@ -42,7 +41,7 @@ export default function StoresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { shops, fetchShops, isLoading } = useShopStore();
-  
+
   const now = new Date();
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(now));
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
@@ -132,7 +131,7 @@ export default function StoresScreen() {
       {false && (
       <View className="bg-[#F3F6F8]">
         <View className="flex-row justify-end px-5 mt-3">
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setShowMonthPicker(true)}
             className="flex-row items-center bg-[#1A3F75] px-3 py-1.5 rounded-lg shadow-sm mr-2"
           >
@@ -146,10 +145,10 @@ export default function StoresScreen() {
 
         {/* Fixed Date Strip */}
         <View className="mt-3 mb-3 flex-row">
-          <ScrollView 
+          <ScrollView
             ref={scrollRef}
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
+            horizontal
+            showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 20 }}
           >
             {monthDates.map((d, i) => {
@@ -181,7 +180,7 @@ export default function StoresScreen() {
           </View>
         ) : filteredShops.length > 0 ? (
           filteredShops.map((item) => {
-            const storeImageUrl = item.images && item.images.length > 0 
+            const storeImageUrl = item.images && item.images.length > 0
               ? (item.images[0].image_url.startsWith('http') ? item.images[0].image_url : `${IMAGE_BASE_URL}${item.images[0].image_url.startsWith('/') ? '' : '/'}${item.images[0].image_url}`)
               : 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
 
@@ -189,16 +188,25 @@ export default function StoresScreen() {
               <TouchableOpacity
                 key={item.id}
                 className="bg-white mx-4 mb-3 p-3 rounded-xl shadow-sm flex-row items-center border border-gray-50"
-                onPress={() => router.push({ 
-                  pathname: '/pages/storeInfo', 
-                  params: { 
-                    storeId: item.id, 
-                    storeName: item.shop_name, 
-                    storeCategory: item.category, 
-                    storeContact: item.contact, 
-                    storeImage: storeImageUrl 
-                  } 
-                })}
+                onPress={() => {
+                  if (!isWorking) {
+                    Alert.alert(
+                      "Action Required",
+                      "Please mark your attendance (start work) before viewing store details."
+                    );
+                    return;
+                  }
+                  router.push({
+                    pathname: '/pages/storeInfo',
+                    params: {
+                      storeId: item.id,
+                      storeName: item.shop_name,
+                      storeCategory: item.category,
+                      storeContact: item.contact,
+                      storeImage: storeImageUrl
+                    }
+                  });
+                }}
               >
                 <Image
                   source={{ uri: storeImageUrl }}
@@ -238,7 +246,7 @@ export default function StoresScreen() {
 
       {/* FAB - Navigate to Create Store page */}
       <TouchableOpacity
-        className="absolute bottom-[100px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
+        className="absolute bottom-[125px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
         onPress={() => router.push('/pages/createStore')}
       >
         <Feather name="plus" size={26} color="white" />

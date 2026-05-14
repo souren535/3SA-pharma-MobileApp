@@ -13,10 +13,9 @@ export default function TabLayout() {
   const theme = Colors[colorScheme ?? "light"];
   const insets = useSafeAreaInsets();
 
-  // Set Android navigation bar to black
+  // Set Android navigation bar button style to light to contrast with the app
   useEffect(() => {
     if (Platform.OS === "android") {
-      NavigationBar.setBackgroundColorAsync("#000000");
       NavigationBar.setButtonStyleAsync("light");
     }
   }, []);
@@ -66,8 +65,8 @@ export default function TabLayout() {
           left: 0,
           right: 0,
           bottom: 0,
-          height: Platform.OS === 'ios' ? 95 : 80,
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 15,
+          height: Platform.OS === 'ios' ? 95 : 70 + insets.bottom,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : insets.bottom + 10,
           paddingTop: 10,
           borderTopLeftRadius: 25,
           borderTopRightRadius: 25,

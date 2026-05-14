@@ -1,28 +1,32 @@
-import React, { useRef, useState } from "react";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import LottieView from "lottie-react-native";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  StatusBar,
-  TouchableOpacity,
+  ActivityIndicator,
+  Animated,
   Dimensions,
   Modal,
   Platform,
-  ActivityIndicator,
-  Animated,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons, Ionicons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import * as Location from "expo-location";
-import { Image } from "expo-image";
+import {
+  useAttendanceStore,
+  useDashboardStore,
+  useNotificationStore,
+  useRouteStore,
+  useShopStore,
+} from "../../store/store";
 import API from "../../utils/api";
-import { useEffect } from "react";
-import { useShopStore, useRouteStore, useAttendanceStore, useDashboardStore, useNotificationStore } from "../../store/store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
 
@@ -38,9 +42,10 @@ export default function HomeScreen() {
 
   // Attendance states (global store)
   const { isWorking, setIsWorking, loadAttendanceState } = useAttendanceStore();
-  const { stats, unvisitedStores, activeStatus, fetchDashboardData } = useDashboardStore();
+  const { stats, unvisitedStores, activeStatus, fetchDashboardData } =
+    useDashboardStore();
   const { notifications, fetchNotifications } = useNotificationStore();
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -55,6 +60,7 @@ export default function HomeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const lottieRef = useRef<LottieView>(null);
   const bounceAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const [showLottie, setShowLottie] = useState(true);
   const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
@@ -69,20 +75,29 @@ export default function HomeScreen() {
     loadAttendanceState();
   }, []);
 
-  useEffect(() => {
-    if (activeStatus && activeStatus.is_active !== isWorking) {
-      setIsWorking(activeStatus.is_active);
-    }
-  }, [activeStatus]);
+  // activeStatus sync removed to prevent the backend from incorrectly resetting local attendance state on app reload
 
   React.useEffect(() => {
+    // Continuous pulse animation for the glowing ring
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.5,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+
     if (isWorking) {
-      // Working: show green looping animation
       setShowLottie(true);
     } else {
-      // Not working: show red animation once, then hide
       setShowLottie(true);
-
       // Bounce the button one time
       Animated.sequence([
         Animated.spring(bounceAnim, {
@@ -97,11 +112,10 @@ export default function HomeScreen() {
         }),
       ]).start();
 
-      // Play lottie once then hide after ~2 seconds
-      lottieRef.current?.play();
+      // Stop showing the glowing ring after a few seconds when work ends
       const timer = setTimeout(() => {
         setShowLottie(false);
-      }, 2000);
+      }, 2500);
       return () => clearTimeout(timer);
     }
   }, [isWorking]);
@@ -142,11 +156,34 @@ export default function HomeScreen() {
           setPopupVisible(false);
           setAttendanceType("logout");
           setSelfieUri(null);
-          // Request camera permission for logout selfie
+          // Request permissions
           if (!cameraPermission?.granted) {
             await requestCameraPermission();
           }
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== "granted") {
+            showPopup(
+              "Permission Denied",
+              "Location permission is required to end your work day.",
+              "info",
+            );
+            return;
+          }
+          // Auto-fetch location
+          setLocationLoading(true);
           setShowAttendanceModal(true);
+          try {
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            setLocation({
+              lat: loc.coords.latitude,
+              lng: loc.coords.longitude,
+            });
+          } catch (error) {
+            console.log("Location error:", error);
+          }
+          setLocationLoading(false);
         },
       );
     } else {
@@ -206,7 +243,7 @@ export default function HomeScreen() {
       showPopup("Required", "Please take a selfie first.", "info");
       return;
     }
-    if (attendanceType === "login" && !location) {
+    if (!location) {
       showPopup("Required", "Location not captured yet.", "info");
       return;
     }
@@ -242,6 +279,8 @@ export default function HomeScreen() {
         // LOGOUT API
         const fallbackShopId = shops.length > 0 ? String(shops[0].id) : "1";
         formData.append("last_shop_id", fallbackShopId);
+        formData.append("latitude", String(location!.lat));
+        formData.append("longitude", String(location!.lng));
 
         await API.post("/attendance/logout", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -251,10 +290,6 @@ export default function HomeScreen() {
         setSelfieUri(null);
         setLocation(null);
         setShowAttendanceModal(false);
-        // Play red lottie animation once
-        setTimeout(() => {
-          lottieRef.current?.play();
-        }, 300);
         showPopup(
           "Work Ended",
           "Your work day has been stopped successfully.",
@@ -262,11 +297,14 @@ export default function HomeScreen() {
         );
       }
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || '';
+      const errorMsg = error.response?.data?.message || "";
       console.log("Attendance error:", error.response?.data || error.message);
 
       // If the server says "Already logged in", treat it as a success
-      if (attendanceType === 'login' && errorMsg.toLowerCase().includes('already logged in')) {
+      if (
+        attendanceType === "login" &&
+        errorMsg.toLowerCase().includes("already logged in")
+      ) {
         await setIsWorking(true);
         setSelfieUri(null);
         setLocation(null);
@@ -325,8 +363,15 @@ export default function HomeScreen() {
               <Text className="text-[13px] text-white/70 font-medium mr-4">
                 {formattedDate}
               </Text>
-              <TouchableOpacity onPress={() => router.push('/pages/notifucation')} className="relative">
-                <Ionicons name="notifications-outline" size={24} color="white" />
+              <TouchableOpacity
+                onPress={() => router.push("/pages/notifucation")}
+                className="relative"
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={24}
+                  color="white"
+                />
                 {unreadCount > 0 && (
                   <View className="absolute right-0.5 top-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#1A3F75]" />
                 )}
@@ -342,49 +387,48 @@ export default function HomeScreen() {
             <Text className="flex-1 text-[16px] font-semibold text-white">
               Souren Khan
             </Text>
-            <View style={{ alignItems: 'center', position: 'relative', width: 40, height: 40 }}>
-              {/* Lottie behind button (zIndex: 0) */}
+            <View
+              style={{
+                alignItems: "center",
+                position: "relative",
+                width: 40,
+                height: 40,
+              }}
+            >
+              {/* Glowing ring behind button (zIndex: 0) */}
               {showLottie && (
-                <View
+                <Animated.View
                   pointerEvents="none"
                   style={{
-                    width: 100,
-                    height: 100,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
                     position: "absolute",
-                    top: -30,
-                    left: -30,
                     zIndex: 0,
+                    backgroundColor: isWorking ? "#059669" : "#DC2626",
+                    transform: [{ scale: pulseAnim }],
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [1, 1.5],
+                      outputRange: [0.6, 0],
+                    }),
                   }}
-                >
-                  <LottieView
-                    key={`lottie-${isWorking}-${showLottie}`}
-                    ref={lottieRef}
-                    source={require("@/assets/animation/blink-animation.json")}
-                    autoPlay={isWorking}
-                    loop={isWorking}
-                    colorFilters={[
-                      {
-                        keypath: "**",
-                        color: isWorking ? "#059669" : "#DC2626",
-                      },
-                    ]}
-                    style={{ flex: 1 }}
-                  />
-                </View>
+                />
               )}
               {/* Button on top (zIndex: 10) */}
-              <Animated.View style={{ transform: [{ scale: bounceAnim }], zIndex: 10 }}>
+              <Animated.View
+                style={{ transform: [{ scale: bounceAnim }], zIndex: 10 }}
+              >
                 <TouchableOpacity
                   onPress={handlePowerPress}
                   style={{
                     width: 40,
                     height: 40,
                     borderRadius: 20,
-                    backgroundColor: 'white',
-                    justifyContent: 'center',
-                    alignItems: 'center',
+                    backgroundColor: "white",
+                    justifyContent: "center",
+                    alignItems: "center",
                     elevation: 5,
-                    shadowColor: '#000',
+                    shadowColor: "#000",
                     shadowOffset: { width: 0, height: 2 },
                     shadowOpacity: 0.2,
                     shadowRadius: 3,
@@ -419,7 +463,9 @@ export default function HomeScreen() {
                   {" "}
                   /{" "}
                 </Text>
-                <Text className="text-[26px] font-extrabold">{(stats?.today_visits || 0) + unvisitedStores.length}</Text>
+                <Text className="text-[26px] font-extrabold">
+                  {(stats?.today_visits || 0) + unvisitedStores.length}
+                </Text>
               </View>
               <Text className="text-[12px] font-medium text-[#94A3B8] mt-0.5">
                 Visited Today
@@ -457,7 +503,11 @@ export default function HomeScreen() {
             {/* Collection */}
             <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#EFF6FF]">
               <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#DBEAFE]">
-                <MaterialIcons name="account-balance-wallet" size={18} color="#2563EB" />
+                <MaterialIcons
+                  name="account-balance-wallet"
+                  size={18}
+                  color="#2563EB"
+                />
               </View>
               <Text className="text-[16px] font-extrabold mb-0.5 text-[#2563EB]">
                 ₹{stats?.today_collection || 0}
@@ -486,7 +536,10 @@ export default function HomeScreen() {
                 <MaterialIcons name="insert-chart" size={18} color="#7C3AED" />
               </View>
               <Text className="text-[14px] font-extrabold mb-0.5 text-[#7C3AED]">
-                ₹{(stats?.monthly_sales || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                ₹
+                {(stats?.monthly_sales || 0).toLocaleString("en-IN", {
+                  maximumFractionDigits: 0,
+                })}
               </Text>
               <Text className="text-[10px] font-semibold text-[#64748B]">
                 Monthly
@@ -529,7 +582,7 @@ export default function HomeScreen() {
           {/* Visit Next Store */}
           {unvisitedStores.length > 0 && (
             <View className="bg-white rounded-2xl mb-2.5 shadow-sm shadow-black/5 overflow-hidden">
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="flex-row items-center p-4"
                 onPress={() => setIsNextStoreExpanded(!isNextStoreExpanded)}
               >
@@ -540,43 +593,64 @@ export default function HomeScreen() {
                   <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
                     Visit Next Store
                   </Text>
-                  <Text className="text-[12px] font-medium text-[#94A3B8]" numberOfLines={1}>
+                  <Text
+                    className="text-[12px] font-medium text-[#94A3B8]"
+                    numberOfLines={1}
+                  >
                     {unvisitedStores[0].shop_name}, {unvisitedStores[0].address}
                   </Text>
                 </View>
-                <MaterialIcons 
-                  name={isNextStoreExpanded ? "expand-less" : "expand-more"} 
-                  size={24} 
-                  color="#94A3B8" 
+                <MaterialIcons
+                  name={isNextStoreExpanded ? "expand-less" : "expand-more"}
+                  size={24}
+                  color="#94A3B8"
                 />
               </TouchableOpacity>
-              
+
               {isNextStoreExpanded && (
                 <View className="px-4 pb-4 pt-1 border-t border-gray-100">
                   <View className="flex-row justify-between mb-2">
-                    <Text className="text-gray-500 text-xs font-semibold">Owner:</Text>
-                    <Text className="text-gray-800 text-xs font-bold">{unvisitedStores[0].owner_name}</Text>
+                    <Text className="text-gray-500 text-xs font-semibold">
+                      Owner:
+                    </Text>
+                    <Text className="text-gray-800 text-xs font-bold">
+                      {unvisitedStores[0].owner_name}
+                    </Text>
                   </View>
                   <View className="flex-row justify-between mb-4">
-                    <Text className="text-gray-500 text-xs font-semibold">Contact:</Text>
-                    <Text className="text-gray-800 text-xs font-bold">{unvisitedStores[0].contact}</Text>
+                    <Text className="text-gray-500 text-xs font-semibold">
+                      Contact:
+                    </Text>
+                    <Text className="text-gray-800 text-xs font-bold">
+                      {unvisitedStores[0].contact}
+                    </Text>
                   </View>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     className="bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
                     onPress={() => {
+                      if (!isWorking) {
+                        showPopup("Action Required", "Please start your work day before placing an order.", "info");
+                        return;
+                      }
                       router.push({
-                        pathname: '/pages/orderCreate',
+                        pathname: "/pages/orderCreate",
                         params: {
                           storeId: unvisitedStores[0].id.toString(),
                           storeName: unvisitedStores[0].shop_name,
-                          fromStore: 'true'
-                        }
+                          fromStore: "true",
+                        },
                       });
                     }}
                   >
-                    <MaterialIcons name="add-shopping-cart" size={18} color="white" />
-                    <Text className="text-white font-bold ml-2 text-sm">Place Order for this Store</Text>
+                    <MaterialIcons
+                      name="add-shopping-cart"
+                      size={18}
+                      color="white"
+                    />
+                    <Text className="text-white font-bold ml-2 text-sm">
+                      Place Order for this Store
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -584,9 +658,9 @@ export default function HomeScreen() {
           )}
 
           {/* Place New Order */}
-          <TouchableOpacity 
+          <TouchableOpacity
             className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5"
-            onPress={() => router.push('/pages/orderCreate')}
+            onPress={() => router.push("/pages/orderCreate")}
           >
             <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#DBEAFE]">
               <MaterialIcons
@@ -686,18 +760,16 @@ export default function HomeScreen() {
       </Modal>
 
       {/* ===== ATTENDANCE MODAL ===== */}
-      <Modal visible={showAttendanceModal} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View
-            className="bg-white rounded-t-3xl"
-            style={{
-              maxHeight: Dimensions.get("window").height * 0.85,
-              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 30,
-            }}
-          >
+      <Modal
+        visible={showAttendanceModal}
+        animationType="slide"
+        transparent={false}
+      >
+        <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+          <View className="flex-1">
             {/* Modal Header */}
-            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
-              <Text className="text-lg font-bold text-gray-800">
+            <View className="flex-row items-center justify-between px-5 pt-3 pb-4 border-b border-gray-100">
+              <Text className="text-xl font-bold text-[#1E293B]">
                 {attendanceType === "login"
                   ? "Mark Attendance"
                   : "End Work Day"}
@@ -708,22 +780,25 @@ export default function HomeScreen() {
                   setLocation(null);
                   setShowAttendanceModal(false);
                 }}
+                className="bg-gray-100 p-2 rounded-full"
               >
-                <MaterialIcons name="close" size={26} color="#9CA3AF" />
+                <MaterialIcons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              className="px-5 mt-4"
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Camera Section */}
+            {/* Camera Section - Moved OUTSIDE ScrollView to prevent Android SurfaceView bleeding */}
+            <View className="px-5 mt-4">
               <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
                 Take a Selfie
               </Text>
               <View
-                className="bg-gray-100 rounded-2xl overflow-hidden mb-5"
-                style={{ height: 300 }}
+                className="bg-gray-100 mb-2 border border-gray-200"
+                style={{
+                  height: 300,
+                  width: Dimensions.get("window").width - 40,
+                  overflow: "hidden",
+                  borderRadius: Platform.OS === "ios" ? 16 : 0, // Android SurfaceView doesn't clip borderRadius natively
+                }}
               >
                 {selfieUri ? (
                   <View style={{ flex: 1 }}>
@@ -742,14 +817,25 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : cameraPermission?.granted ? (
-                  <View style={{ flex: 1 }}>
-                    <CameraView
-                      ref={cameraRef}
-                      style={{ flex: 1 }}
-                      facing="front"
-                    />
+                  <View
+                    style={{
+                      width: Dimensions.get("window").width - 40,
+                      height: 300,
+                      position: "relative",
+                    }}
+                  >
+                    {showAttendanceModal && (
+                      <CameraView
+                        ref={cameraRef}
+                        style={{
+                          width: Dimensions.get("window").width - 40,
+                          height: 300,
+                        }}
+                        facing="front"
+                      />
+                    )}
                     <TouchableOpacity
-                      className="absolute bottom-4 self-center w-16 h-16 rounded-full bg-white border-4 border-[#1A3F75] items-center justify-center"
+                      className="absolute bottom-4 self-center w-16 h-16 rounded-full bg-white border-4 border-[#1A3F75] items-center justify-center shadow-lg"
                       onPress={takeSelfie}
                     >
                       <View className="w-12 h-12 rounded-full bg-[#1A3F75]" />
@@ -768,80 +854,85 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-
-              {/* Location Section — only for login */}
-              {attendanceType === "login" && (
-                <>
-                  <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
-                    Location (Auto-Captured)
-                  </Text>
-                  <View className="bg-gray-50 rounded-xl p-4 mb-5 border border-gray-100">
-                    {locationLoading ? (
-                      <View className="flex-row items-center">
-                        <ActivityIndicator size="small" color="#1A3F75" />
-                        <Text className="ml-3 text-gray-500 text-sm">
-                          Fetching location...
-                        </Text>
-                      </View>
-                    ) : location ? (
-                      <View>
-                        <View className="flex-row items-center mb-2">
-                          <MaterialIcons
-                            name="my-location"
-                            size={18}
-                            color="#059669"
-                          />
-                          <Text className="ml-2 text-green-700 font-bold text-sm">
-                            Location Captured ✓
-                          </Text>
-                        </View>
-                        <Text className="text-gray-600 text-xs">
-                          Lat: {location.lat.toFixed(6)}
-                        </Text>
-                        <Text className="text-gray-600 text-xs mt-1">
-                          Lng: {location.lng.toFixed(6)}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text className="text-gray-400 text-sm">
-                        Location not available
-                      </Text>
-                    )}
-                  </View>
-                </>
-              )}
-            </ScrollView>
-
-            {/* Submit Button */}
-            <View className="px-5 pt-3">
-              <TouchableOpacity
-                className={`py-4 rounded-2xl items-center shadow-md ${
-                  attendanceType === "login"
-                    ? selfieUri && location
-                      ? "bg-[#1A3F75]"
-                      : "bg-gray-300"
-                    : selfieUri
-                      ? "bg-[#DC2626]"
-                      : "bg-gray-300"
-                }`}
-                onPress={handleAttendanceSubmit}
-                disabled={
-                  submitting ||
-                  !selfieUri ||
-                  (attendanceType === "login" && !location)
-                }
-              >
-                {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text className="text-white text-[15px] font-bold">
-                    {attendanceType === "login"
-                      ? "Submit Attendance"
-                      : "End Work Day"}
-                  </Text>
-                )}
-              </TouchableOpacity>
             </View>
+
+            {/* Scrollable area for remaining content */}
+            <ScrollView
+              className="px-5 mt-2"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 10 }}
+            >
+              {/* Location Section */}
+              <View className="mb-4">
+                <Text className="text-[12px] font-bold text-gray-400 uppercase mb-2 tracking-wider">
+                  Location Status
+                </Text>
+                <View className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100/50">
+                  {locationLoading ? (
+                    <View className="flex-row items-center">
+                      <ActivityIndicator size="small" color="#1A3F75" />
+                      <Text className="ml-3 text-[#1A3F75] font-medium text-[14px]">
+                        Capturing precise location...
+                      </Text>
+                    </View>
+                  ) : location ? (
+                    <View>
+                      <View className="flex-row items-center mb-1">
+                        <MaterialIcons
+                          name="location-on"
+                          size={18}
+                          color="#059669"
+                        />
+                        <Text className="ml-2 text-green-700 font-bold text-[14px]">
+                          Location captured successfully
+                        </Text>
+                      </View>
+                      <Text className="text-gray-500 text-[12px] ml-6">
+                        Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center">
+                      <MaterialIcons name="location-off" size={18} color="#DC2626" />
+                      <Text className="ml-2 text-red-600 font-bold text-[14px]">
+                        Unable to capture location
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Submit Button */}
+              <View
+                className="px-5 pt-3"
+                style={{
+                  paddingBottom:
+                    Platform.OS === "ios"
+                      ? insets.bottom + 10
+                      : insets.bottom + 20,
+                }}
+              >
+                <TouchableOpacity
+                  className={`py-4 rounded-2xl items-center shadow-sm ${
+                    selfieUri && location
+                      ? attendanceType === "login" ? "bg-[#1A3F75]" : "bg-[#DC2626]"
+                      : "bg-gray-200"
+                  }`}
+                  onPress={handleAttendanceSubmit}
+                  disabled={submitting || !selfieUri || !location}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text className={`text-[16px] font-bold ${(!selfieUri || !location) ? 'text-gray-400' : 'text-white'}`}>
+                      {attendanceType === "login"
+                        ? "Confirm & Start Work"
+                        : "Confirm & End Work"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

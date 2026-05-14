@@ -88,9 +88,9 @@ export default function StoreInfoScreen() {
   const storeCategory = shopInfo?.category || (params.storeCategory as string) || '';
   const storeContact = shopInfo?.contact || (params.storeContact as string) || '';
   const storeAddress = shopInfo?.address || (params.storeAddress as string) || 'Address not available';
-  
+
   let storeImage = (params.storeImage as string) || 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=400&auto=format&fit=crop';
-  
+
   // Try to find image in shopInfo or shopDetail
   const images = shopInfo?.images || shopDetail?.images;
   if (images && images.length > 0) {
@@ -112,7 +112,21 @@ export default function StoreInfoScreen() {
     return (
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {shopOrders.map((item) => (
-          <TouchableOpacity key={item.id} className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center">
+          <TouchableOpacity 
+            key={item.id} 
+            className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
+            onPress={() => router.push({
+              pathname: '/pages/orderDetails',
+              params: {
+                id: item.id,
+                isOrder: 'true',
+                orderNo: item.order_no,
+                store: storeName,
+                amount: item.total_amount,
+                date: item.billing_date || item.created_at
+              }
+            })}
+          >
             <View className={`w-11 h-11 rounded-full items-center justify-center bg-[#FF7676]`}>
               <Text className="text-white text-lg font-bold">O</Text>
             </View>
@@ -211,7 +225,27 @@ export default function StoreInfoScreen() {
             filteredTransactions.map((item) => {
               const isCredit = item.type === 'Order';
               return (
-                <View key={item.id} className="bg-white mb-3 p-4 rounded-xl shadow-sm">
+                <TouchableOpacity 
+                  key={item.id} 
+                  className="bg-white mb-3 p-4 rounded-xl shadow-sm"
+                  onPress={() => {
+                    if (isCredit) {
+                      const idStr = item.id.toString();
+                      const realId = idStr.includes('_') ? idStr.split('_')[1] : idStr;
+                      router.push({
+                        pathname: '/pages/orderDetails',
+                        params: {
+                          id: realId,
+                          isOrder: 'true',
+                          orderNo: item.reference_no,
+                          store: storeName,
+                          amount: item.amount,
+                          date: item.date
+                        }
+                      });
+                    }
+                  }}
+                >
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center">
                       <View className={`w-8 h-8 rounded-full items-center justify-center ${isCredit ? 'bg-[#FEE2E2]' : 'bg-[#DCFCE7]'}`}>
@@ -236,7 +270,7 @@ export default function StoreInfoScreen() {
                       <Text className="text-xs text-gray-600 font-semibold">{item.reference_no}</Text>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
@@ -373,7 +407,7 @@ export default function StoreInfoScreen() {
       {/* FAB Options (Only for Orders) */}
       {activeTab === 'Orders' && (
         <Animated.View
-          className="absolute bottom-[100px] right-6 items-end gap-3"
+          className="absolute bottom-[185px] right-6 items-end gap-3"
           style={{
             transform: [{ translateY: fabMenuTranslateY }],
             opacity: fabMenuOpacity,
@@ -411,7 +445,7 @@ export default function StoreInfoScreen() {
       {/* Main FAB (Hidden on Info tab) */}
       {activeTab !== 'Info' && (
         <TouchableOpacity
-          className="absolute bottom-10 right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
+          className="absolute bottom-[125px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
           onPress={() => {
             if (!isWorking) {
               setShowAttendanceGate(true);

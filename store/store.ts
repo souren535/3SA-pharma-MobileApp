@@ -1,5 +1,4 @@
 import { create } from "zustand";
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../service/auth.service";
 import API from "../utils/api";

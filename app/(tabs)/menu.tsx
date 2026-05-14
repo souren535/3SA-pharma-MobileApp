@@ -5,54 +5,64 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore, useAttendanceStore } from '@/store/store';
+import { useAuthStore, useAttendanceStore, usePaymentStore, useDashboardStore } from '@/store/store';
 
 const { width } = Dimensions.get('window');
-
-const MENU_ITEMS = [
-  {
-    id: 'profile',
-    title: 'souren khan',
-    subtitle: 'Senior Sales Executive (ID: #SFA-2024-08)',
-    icon: 'person-circle-outline',
-    type: 'profile',
-    image: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop', // Fallback if local image not found
-    route: '/pages/profile' as const,
-  },
-  {
-    id: 'payment',
-    title: 'Payments',
-    subtitle: 'Balance: ₹24,500.00',
-    icon: 'wallet-outline',
-    gradient: ['#6366f1', '#4f46e5'] as const,
-    stats: '12 Transactions',
-    route: '/pages/payment' as const,
-  },
-  {
-    id: 'support',
-    title: 'Help & Support',
-    subtitle: 'Get instant help from our team',
-    icon: 'chatbubble-ellipses-outline',
-    gradient: ['#ec4899', '#db2777'] as const,
-    route: '/pages/support' as const,
-  },
-  {
-    id: 'visits',
-    title: 'Visit History',
-    subtitle: 'View all your store visits',
-    icon: 'location-outline',
-    gradient: ['#10b981', '#059669'] as const,
-    route: '/pages/visits' as const,
-  },
-];
 
 export default function MenuScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { logout } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const { isWorking } = useAttendanceStore();
+  const { paymentsHistory, fetchPaymentsHistory } = usePaymentStore();
+  const { stats, fetchDashboardData } = useDashboardStore();
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
+
+  React.useEffect(() => {
+    fetchPaymentsHistory();
+    fetchDashboardData();
+  }, []);
+
+  const MENU_ITEMS = [
+    {
+      id: 'profile',
+      title: user?.name || 'souren khan',
+      subtitle: `Senior Sales Executive (ID: #${user?.id || 'SFA-2024-08'})`,
+      icon: 'person-circle-outline',
+      type: 'profile',
+      image: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop',
+      route: '/pages/profile' as const,
+    },
+    {
+      id: 'payment',
+      title: 'Payments',
+      // subtitle: {
+      //   title: "Balance",
+      //   subTitle: `₹${(stats?.today_collection || 0).toLocaleString('en-IN')}`
+      // },
+      icon: 'wallet-outline',
+      gradient: ['#6366f1', '#4f46e5'] as const,
+      stats: `${paymentsHistory.length} Transactions`,
+      route: '/pages/payment' as const,
+    },
+    {
+      id: 'support',
+      title: 'Help & Support',
+      subtitle: 'Get instant help from our team',
+      icon: 'chatbubble-ellipses-outline',
+      gradient: ['#ec4899', '#db2777'] as const,
+      route: '/pages/support' as const,
+    },
+    {
+      id: 'visits',
+      title: 'Visit History',
+      subtitle: 'View all your store visits',
+      icon: 'location-outline',
+      gradient: ['#10b981', '#059669'] as const,
+      route: '/pages/visits' as const,
+    },
+  ];
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -64,7 +74,7 @@ export default function MenuScreen() {
     router.replace('/(auth)');
   };
 
-  const renderCard = (item: typeof MENU_ITEMS[0]) => {
+  const renderCard = (item: any) => {
     if (item.type === 'profile') {
       return (
         <TouchableOpacity
@@ -113,14 +123,21 @@ export default function MenuScreen() {
 
           <View className="flex-1">
             <Text className="text-white text-lg font-bold">{item.title}</Text>
-            <Text className="text-white/80 text-sm">{item.subtitle}</Text>
+            {typeof item.subtitle === 'object' ? (
+              <View className="flex-row items-center">
+                <Text className="text-white/80 text-sm">{item.subtitle.title}: </Text>
+                <Text className="text-white font-bold text-sm">{item.subtitle.subTitle}</Text>
+              </View>
+            ) : (
+              <Text className="text-white/80 text-sm">{item.subtitle}</Text>
+            )}
           </View>
 
-          {item.stats && (
+          {item.stats ? (
             <View className="bg-white/30 px-3 py-1 rounded-full">
               <Text className="text-white text-[10px] font-bold">{item.stats}</Text>
             </View>
-          )}
+          ) : null}
 
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" className="ml-2" />
         </LinearGradient>
@@ -188,14 +205,6 @@ export default function MenuScreen() {
               <Text className="flex-1 text-slate-700 font-medium">Notifications</Text>
               <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
             </TouchableOpacity>
-
-            <TouchableOpacity className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm">
-              <View className="bg-indigo-50 p-2 rounded-xl mr-3">
-                <Ionicons name="shield-checkmark-outline" size={20} color="#6366f1" />
-              </View>
-              <Text className="flex-1 text-slate-700 font-medium">Security</Text>
-              <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-            </TouchableOpacity>
           </View>
         )}
 
@@ -209,7 +218,7 @@ export default function MenuScreen() {
 
         <View className="items-center mt-8 opacity-30">
           <Text className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">SFA Pro v1.0.42</Text>
-          <Text className="text-[10px] text-slate-500">Built with ❤️ by 3SA Team</Text>
+          <Text className="text-[10px] text-slate-500">Built with by 3SA Team</Text>
         </View>
       </ScrollView>
 
@@ -226,15 +235,15 @@ export default function MenuScreen() {
             </View>
             <Text className="text-2xl font-bold text-slate-900 mb-2">Logout?</Text>
             <Text className="text-slate-500 text-center mb-8 text-lg">Are you sure you want to log out of your account?</Text>
-            
+
             <View className="flex-row w-full gap-3">
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="flex-1 bg-slate-100 py-4 rounded-2xl items-center"
                 onPress={() => setShowLogoutModal(false)}
               >
                 <Text className="text-slate-700 font-bold text-lg">Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="flex-1 bg-red-600 py-4 rounded-2xl items-center shadow-sm shadow-red-200"
                 onPress={confirmLogout}
               >

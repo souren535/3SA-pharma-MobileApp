@@ -181,7 +181,13 @@ export default function OrdersScreen() {
               className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
               onPress={() => router.push({
                 pathname: '/pages/orderDetails',
-                params: { orderId: item.id }
+                params: { 
+                  id: item.id,
+                  isOrder: 'true',
+                  orderNo: item.order_no,
+                  store: item.shop?.shop_name,
+                  amount: item.total_amount
+                }
               })}
             >
               {/* Circle Icon */}
@@ -216,7 +222,7 @@ export default function OrdersScreen() {
 
       {/* FAB */}
       <TouchableOpacity
-        className="absolute bottom-[100px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
+        className="absolute bottom-[125px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
         onPress={() => router.push('/pages/orderCreate')}
       >
         <Feather name="plus" size={26} color="white" />
