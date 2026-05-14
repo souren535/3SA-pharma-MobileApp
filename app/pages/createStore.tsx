@@ -3,18 +3,16 @@ import {
   View, Text, ScrollView, TouchableOpacity, Platform,
   Image, TextInput, Modal, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
-import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useShopStore, useRouteStore } from '../../store/store';
-import API from '../../utils/api';
-import LoadingScreen from '../../components/LoadingScreen';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
-
 const SHOP_TYPES = ['Retail', 'Wholesaler'];
 
 const INDIAN_STATES = [
@@ -26,22 +24,30 @@ const INDIAN_STATES = [
   'Delhi', 'Jammu & Kashmir', 'Ladakh',
 ];
 
-// ─── Input Component ─────────────────────────────────
+// ─── Input Component ──────────────────────────────────────────────────────────
 const InputField = ({
   label, value, onChangeText, placeholder, required = false,
   keyboardType = 'default' as any, multiline = false, maxLength, prefix,
   editable = true, loading = false, rightElement, autoCapitalize = 'none',
 }: any) => (
-  <View className="mb-4">
-    <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
+  <View style={{ marginBottom: 16 }}>
+    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>
       {label}{required ? ' *' : ''}
     </Text>
-    <View className={`flex-row items-center rounded-xl border border-gray-100 ${editable ? 'bg-gray-50' : 'bg-gray-100'}`}>
+    <View style={{
+      flexDirection: 'row', alignItems: 'center',
+      borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6',
+      backgroundColor: editable ? '#F9FAFB' : '#F3F4F6',
+    }}>
       {prefix && (
-        <Text className="pl-3.5 text-[14px] font-semibold text-gray-600">{prefix}</Text>
+        <Text style={{ paddingLeft: 14, fontSize: 14, fontWeight: '600', color: '#4B5563' }}>{prefix}</Text>
       )}
       <TextInput
-        className={`flex-1 p-3.5 text-[14px] ${editable ? 'text-gray-800' : 'text-gray-500'}`}
+        style={{
+          flex: 1, padding: 14, fontSize: 14,
+          color: editable ? '#1F2937' : '#6B7280',
+          ...(multiline ? { minHeight: 60, textAlignVertical: 'top' } : {}),
+        }}
         placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         value={value}
@@ -51,34 +57,38 @@ const InputField = ({
         maxLength={maxLength}
         editable={editable}
         autoCapitalize={autoCapitalize}
-        style={multiline ? { minHeight: 60, textAlignVertical: 'top' } : undefined}
       />
       {loading && (
-        <View className="pr-3.5">
+        <View style={{ paddingRight: 14 }}>
           <ActivityIndicator size="small" color="#1A3F75" />
         </View>
       )}
       {rightElement && (
-        <View className="pr-2">
-          {rightElement}
-        </View>
+        <View style={{ paddingRight: 8 }}>{rightElement}</View>
       )}
     </View>
   </View>
 );
 
-// ─── Dropdown Component ───────────────────────────────
+// ─── Dropdown Component ───────────────────────────────────────────────────────
 const DropdownField = ({ label, value, onPress, placeholder, required = false, disabled = false }: any) => (
-  <View className="mb-4">
-    <Text className="text-xs font-bold text-gray-400 uppercase mb-1.5">
+  <View style={{ marginBottom: 16 }}>
+    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>
       {label}{required ? ' *' : ''}
     </Text>
     <TouchableOpacity
-      className={`flex-row items-center justify-between rounded-xl border border-gray-100 p-3.5 ${disabled ? 'bg-gray-100' : 'bg-gray-50'}`}
+      style={{
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6',
+        padding: 14, backgroundColor: disabled ? '#F3F4F6' : '#F9FAFB',
+      }}
       onPress={disabled ? undefined : onPress}
       activeOpacity={disabled ? 1 : 0.7}
     >
-      <Text className={`text-[14px] ${value ? (disabled ? 'text-gray-500 font-medium' : 'text-gray-800 font-medium') : 'text-gray-400'}`}>
+      <Text style={{
+        fontSize: 14, fontWeight: value ? '500' : '400',
+        color: value ? (disabled ? '#6B7280' : '#1F2937') : '#9CA3AF',
+      }}>
         {value || placeholder}
       </Text>
       {!disabled && <Ionicons name="chevron-down" size={18} color="#9CA3AF" />}
@@ -86,45 +96,54 @@ const DropdownField = ({ label, value, onPress, placeholder, required = false, d
   </View>
 );
 
-// ─── Review Item ──────────────────────────────────────
+// ─── Review Item ──────────────────────────────────────────────────────────────
 const ReviewItem = ({ label, value }: { label: string; value: string }) => (
-  <View className="py-2.5 border-b border-gray-50">
-    <Text className="text-xs text-gray-500 mb-1">{label}</Text>
-    <Text className="text-[13px] font-bold text-gray-800" numberOfLines={2}>
+  <View style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+    <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>{label}</Text>
+    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F2937' }} numberOfLines={2}>
       {value || '—'}
     </Text>
   </View>
 );
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CreateStoreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { createShop, validateGST, fetchShops } = useShopStore();
+  const { createShop } = useShopStore();
+  const { routes } = useRouteStore();
+
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingGST, setIsValidatingGST] = useState(false);
-  const { routes } = useRouteStore();
 
-  // Location state
+  // ── Location ────────────────────────────────────────────────────────────────
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   React.useEffect(() => {
+    let cancelled = false;
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        showPopup('Permission Denied', 'Permission to access location was denied');
-        return;
-      }
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
 
-      let loc = await Location.getCurrentPositionAsync({});
-      setLocation({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude
-      });
+        // Try balanced accuracy first; fall back to last known if GPS unavailable
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }).catch(async () => Location.getLastKnownPositionAsync());
+
+        if (!cancelled && loc) {
+          setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        }
+      } catch (err) {
+        // Non-fatal — form works fine without location
+        console.warn('Location unavailable (non-fatal):', err);
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Step 1 – Personal
+  // ── Step 1 — Personal ───────────────────────────────────────────────────────
   const [storeImages, setStoreImages] = useState<string[]>([]);
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -132,8 +151,9 @@ export default function CreateStoreScreen() {
   const [email, setEmail] = useState('');
   const [shopType, setShopType] = useState('');
   const [showShopTypePicker, setShowShopTypePicker] = useState(false);
+  const [showImageSourceModal, setShowImageSourceModal] = useState(false);
 
-  // Step 2 – Address
+  // ── Step 2 — Address ────────────────────────────────────────────────────────
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
   const [city, setCity] = useState('');
@@ -142,7 +162,43 @@ export default function CreateStoreScreen() {
   const [state, setState] = useState('');
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [loadingPin, setLoadingPin] = useState(false);
+  const [routeId, setRouteId] = useState('');
+  const [areaId, setAreaId] = useState('');
+  const [isManualArea, setIsManualArea] = useState(false);
+  const [areaName, setAreaName] = useState('');
+  const [showRoutePicker, setShowRoutePicker] = useState(false);
+  const [showAreaPicker, setShowAreaPicker] = useState(false);
 
+  // ── Step 3 — Legal ──────────────────────────────────────────────────────────
+  const [licenseNo, setLicenseNo] = useState('');
+  const [fssaiLicense, setFssaiLicense] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [panNumber, setPanNumber] = useState('');
+  const [category] = useState('medicine');
+
+  // ── Popup ───────────────────────────────────────────────────────────────────
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [popupTitle, setPopupTitle] = useState('');
+  const [popupMessage, setPopupMessage] = useState('');
+  const [popupIsSuccess, setPopupIsSuccess] = useState(false);
+
+  const showPopup = (title: string, message: string) => {
+    setPopupTitle(title);
+    setPopupMessage(message);
+    setPopupIsSuccess(title === 'Success');
+    setPopupVisible(true);
+  };
+
+  // ── Auto-set first route ─────────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (routes.length > 0 && !routeId) {
+      setRouteId(routes[0].id.toString());
+    }
+  }, [routes]);
+
+  const selectedRouteObj = routes.find(r => r.id.toString() === routeId);
+
+  // ── PIN lookup ───────────────────────────────────────────────────────────────
   const handlePinChange = async (text: string) => {
     const pinCode = text.replace(/[^0-9]/g, '');
     setPin(pinCode);
@@ -151,7 +207,7 @@ export default function CreateStoreScreen() {
       try {
         const response = await fetch(`https://api.postalpincode.in/pincode/${pinCode}`);
         const data = await response.json();
-        if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+        if (data?.[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
           const po = data[0].PostOffice[0];
           setDistrict(po.District);
           setState(po.State);
@@ -159,82 +215,92 @@ export default function CreateStoreScreen() {
         } else {
           showPopup('Error', 'Invalid PIN Code. Please enter a valid Indian PIN.');
         }
-      } catch (error) {
-        console.error('Error fetching pin details:', error);
+      } catch {
+        // silently ignore PIN network errors
       } finally {
         setLoadingPin(false);
       }
     }
   };
 
-  // Step 3 – Legal
-  const [licenseNo, setLicenseNo] = useState('');
-  const [fssaiLicense, setFssaiLicense] = useState('');
-  const [gstNumber, setGstNumber] = useState('');
-  const [panNumber, setPanNumber] = useState('');
-  const [category, setCategory] = useState('medicine'); // Default or selectable
-  const [routeId, setRouteId] = useState('');
-  const [areaId, setAreaId] = useState('');
-  const [isManualArea, setIsManualArea] = useState(false);
-  const [areaName, setAreaName] = useState('');
-  const [showRoutePicker, setShowRoutePicker] = useState(false);
-  const [showAreaPicker, setShowAreaPicker] = useState(false);
+  // ── Image handling ──────────────────────────────────────────────────────────
+  // Copy images from volatile ImagePicker cache to the persistent document
+  // directory so they survive until review/upload.
+  const persistImage = async (sourceUri: string): Promise<string> => {
+    try {
+      const ext = sourceUri.split('.').pop() || 'jpg';
+      const fileName = `shop_img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const destUri = `${FileSystem.documentDirectory}${fileName}`;
 
-  // Auto-set first route
-  React.useEffect(() => {
-    if (routes.length > 0 && !routeId) {
-      setRouteId(routes[0].id.toString());
+      // Ensure the source has file:// scheme for FileSystem
+      let normalizedSource = sourceUri;
+      if (!sourceUri.startsWith('file://') && !sourceUri.startsWith('content://') && !sourceUri.startsWith('http')) {
+        normalizedSource = `file://${sourceUri}`;
+      }
+
+      await FileSystem.copyAsync({ from: normalizedSource, to: destUri });
+      console.log('Image persisted to:', destUri);
+      return destUri;
+    } catch (err) {
+      console.warn('Failed to persist image, using original URI:', err);
+      // Fallback: return with file:// if missing
+      if (!sourceUri.startsWith('file://') && !sourceUri.startsWith('content://') && !sourceUri.startsWith('http')) {
+        return `file://${sourceUri}`;
+      }
+      return sourceUri;
     }
-  }, [routes]);
-  
-  const selectedRouteObj = routes.find(r => r.id.toString() === routeId);
-
-  // Image source picker
-  const [showImageSourceModal, setShowImageSourceModal] = useState(false);
-
-  // Popup
-  const [popupVisible, setPopupVisible] = useState(false);
-  const [popupTitle, setPopupTitle] = useState('');
-  const [popupMessage, setPopupMessage] = useState('');
-
-  const showPopup = (title: string, message: string) => {
-    setPopupTitle(title);
-    setPopupMessage(message);
-    setPopupVisible(true);
   };
 
-  // Image handling
   const pickFromGallery = async () => {
     setShowImageSourceModal(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 0.8,
-      selectionLimit: 5,
-    });
-    if (!result.canceled) {
-      setStoreImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 5,
+      });
+      if (!result.canceled) {
+        const persistedUris = await Promise.all(
+          result.assets.map(a => persistImage(a.uri))
+        );
+        setStoreImages(prev => [...prev, ...persistedUris]);
+      }
+    } catch (err) {
+      console.warn('Gallery error:', err);
+      showPopup('Error', 'Could not open gallery. Please try again.');
     }
   };
 
   const takePhoto = async () => {
     setShowImageSourceModal(false);
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      showPopup('Permission Denied', 'Camera permission is required.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) {
-      setStoreImages((prev) => [...prev, result.assets[0].uri]);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        showPopup('Permission Denied', 'Camera permission is required to take photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (!result.canceled && result.assets?.length > 0) {
+        const persistedUri = await persistImage(result.assets[0].uri);
+        setStoreImages(prev => [...prev, persistedUri]);
+      }
+    } catch (err) {
+      console.warn('Camera error:', err);
+      showPopup('Error', 'Could not open camera. Please try again.');
     }
   };
 
   const removeImage = (index: number) => {
-    setStoreImages((prev) => prev.filter((_, i) => i !== index));
+    setStoreImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Validation per step
+  // ── Validation ───────────────────────────────────────────────────────────────
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 0:
@@ -250,14 +316,13 @@ export default function CreateStoreScreen() {
         if (!district.trim()) { showPopup('Required', 'Please enter the district.'); return false; }
         if (!pin.trim() || pin.length !== 6) { showPopup('Required', 'Please enter a valid 6-digit PIN code.'); return false; }
         if (!state) { showPopup('Required', 'Please select the state.'); return false; }
-        if (!routeId) { showPopup('Required', 'Please select a route.'); return false; }
         if (isManualArea) {
           if (!areaName.trim()) { showPopup('Required', 'Please enter the area name.'); return false; }
         } else {
           if (!areaId) { showPopup('Required', 'Please select an area.'); return false; }
         }
         return true;
-      case 2:
+      case 2: {
         if (!licenseNo.trim()) { showPopup('Required', 'Please enter the license number.'); return false; }
         if (!fssaiLicense.trim() || fssaiLicense.length !== 14) { showPopup('Required', 'Please enter a valid 14-digit FSSAI license.'); return false; }
         if (!gstNumber.trim() || gstNumber.length !== 15) { showPopup('Required', 'Please enter a valid 15-digit GST number.'); return false; }
@@ -267,112 +332,120 @@ export default function CreateStoreScreen() {
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
         if (!panRegex.test(panNumber)) { showPopup('Invalid PAN', 'Please enter a valid PAN number format.'); return false; }
         return true;
+      }
       default:
         return true;
     }
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 3));
-    }
+    if (validateStep(currentStep)) setCurrentStep(prev => Math.min(prev + 1, 3));
   };
 
   const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    setCurrentStep(prev => Math.max(prev - 1, 0));
   };
 
-  const handleValidateGST = async () => {
-    if (!gstNumber || gstNumber.length !== 15) {
-      showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.');
-      return;
-    }
-    
-    // Frontend GST Validation Regex
+  const handleValidateGST = () => {
+    if (!gstNumber || gstNumber.length !== 15) { showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.'); return; }
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    
-    if (!gstRegex.test(gstNumber)) {
-      showPopup('Invalid GST', 'The GST number format is incorrect. Please check again.');
-      return;
-    }
-
+    if (!gstRegex.test(gstNumber)) { showPopup('Invalid GST', 'The GST number format is incorrect.'); return; }
     setIsValidatingGST(true);
-    // Simulate loading for better UX and check format locally
-    setTimeout(() => {
-      setIsValidatingGST(false);
-      showPopup('GST Verified', 'GST number format is valid.');
-    }, 800);
+    setTimeout(() => { setIsValidatingGST(false); showPopup('GST Verified', 'GST number format is valid.'); }, 800);
   };
 
+  // ── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!location) {
-      showPopup('Location Required', 'Waiting for location capture...');
-      return;
-    }
-
+    if (isSubmitting) return; // guard against double-tap
     setIsSubmitting(true);
     try {
       const formData = new FormData();
 
-      storeImages.forEach((uri, index) => {
-        const fileName = uri.split('/').pop() || `image_${index}.jpg`;
-        formData.append('images[]', {
-          uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
-          name: fileName,
-          type: 'image/jpeg',
-        } as any);
-      });
+      // Attach images to FormData using explicit indexed keys
+      // (images[0], images[1], etc.) to avoid RN URL-encoding brackets
+      let imageCount = 0;
+      for (let i = 0; i < storeImages.length; i++) {
+        const uri = storeImages[i];
+        if (!uri) continue;
+        try {
+          const name = `shop_image_${i}.jpg`;
+          const fileObj = {
+            uri: uri,
+            name: name,
+            type: 'image/jpeg',
+          };
+          formData.append(`images[${imageCount}]`, fileObj as any);
+          console.log(`Attached images[${imageCount}]: uri=${uri}, name=${name}`);
+          imageCount++;
+        } catch (e) {
+          console.warn(`Error appending image ${i}:`, e);
+        }
+      }
+      console.log(`Total images attached: ${imageCount}`);
 
-      formData.append('shop_name', shopName);
-      formData.append('owner_name', ownerName);
-      formData.append('contact', contact);
-      formData.append('email', email);
+      formData.append('shop_name', shopName.trim());
+      formData.append('owner_name', ownerName.trim());
+      formData.append('contact', contact.trim());
+      formData.append('email', email.trim());
       formData.append('shop_type', shopType);
       formData.append('category', category);
 
-      const fullAddress = `${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${district}, ${state} - ${pin}`;
+      const fullAddress = [address1, address2, city, district, `${state} - ${pin}`]
+        .filter(Boolean).join(', ');
       formData.append('address', fullAddress);
-      formData.append('latitude', String(location.latitude));
-      formData.append('longitude', String(location.longitude));
 
-      formData.append('license_no', licenseNo);
-      formData.append('fassai_license', fssaiLicense);
-      formData.append('gst_number', gstNumber);
-      formData.append('pan_number', panNumber);
+      // Safe 0,0 fallback if GPS was never captured — never block submission
+      formData.append('latitude', String(location?.latitude ?? 0));
+      formData.append('longitude', String(location?.longitude ?? 0));
+
+      formData.append('license_no', licenseNo.trim());
+      formData.append('fassai_license', fssaiLicense.trim());
+      formData.append('gst_number', gstNumber.trim());
+      formData.append('pan_number', panNumber.trim());
       formData.append('route_id', routeId);
-      
+
       if (isManualArea) {
-        formData.append('area_name', areaName);
+        formData.append('area_name', areaName.trim());
       } else {
         formData.append('area_id', areaId);
       }
 
-      console.log('--- SUBMITTING NEW STORE WITH FETCH ---');
       await createShop(formData);
       showPopup('Success', 'Store created successfully!');
     } catch (error: any) {
-      console.error('Submit error:', error);
-      console.error('Submit error response:', error.response?.data);
-      console.error('Submit error message:', error.message);
-      showPopup('Error', error.response?.data?.message || error.message || 'Failed to create store. Please try again.');
+      // Handle plain Error objects (from fixed service) and axios-style errors
+      const msg =
+        error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        'Failed to create store. Please try again.';
+      showPopup('Error', msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ── Step Renderers ────────────────────────────────────────────────────────────
 
-
-  // ─── STEP RENDERERS ───────────────────────────────────
   const renderStep1 = () => (
     <>
-      {/* Store Images */}
-      <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Store Images</Text>
-      <View className="flex-row flex-wrap mb-5">
+      <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 8 }}>
+        Store Images
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
         {storeImages.map((uri, index) => (
-          <View key={index} className="mr-2 mb-2 relative">
-            <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#E5E7EB' }} resizeMode="cover" />
+          <View key={`s1img-${index}`} style={{ marginRight: 8, marginBottom: 8, position: 'relative' }}>
+            <Image
+              source={{ uri }}
+              style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#E5E7EB' }}
+              resizeMode="cover"
+            />
             <TouchableOpacity
-              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full items-center justify-center"
+              style={{
+                position: 'absolute', top: -4, right: -4, width: 20, height: 20,
+                borderRadius: 10, backgroundColor: '#EF4444',
+                alignItems: 'center', justifyContent: 'center',
+              }}
               onPress={() => removeImage(index)}
             >
               <Ionicons name="close" size={12} color="white" />
@@ -380,18 +453,23 @@ export default function CreateStoreScreen() {
           </View>
         ))}
         <TouchableOpacity
-          className="w-20 h-20 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 items-center justify-center"
+          style={{
+            width: 80, height: 80, borderRadius: 12, backgroundColor: '#F3F4F6',
+            borderWidth: 2, borderStyle: 'dashed', borderColor: '#D1D5DB',
+            alignItems: 'center', justifyContent: 'center',
+          }}
           onPress={() => setShowImageSourceModal(true)}
         >
           <Ionicons name="camera-outline" size={24} color="#9CA3AF" />
-          <Text className="text-[9px] text-gray-400 mt-1">Add Photo</Text>
+          <Text style={{ fontSize: 9, color: '#9CA3AF', marginTop: 4 }}>Add Photo</Text>
         </TouchableOpacity>
       </View>
 
       <InputField label="Shop Name" value={shopName} onChangeText={setShopName} placeholder="Enter shop name" required maxLength={100} />
       <InputField label="Owner Name" value={ownerName} onChangeText={setOwnerName} placeholder="Enter owner name" required maxLength={50} />
       <InputField
-        label="Contact Number" value={contact} onChangeText={(t: string) => setContact(t.replace(/[^0-9]/g, ''))}
+        label="Contact Number" value={contact}
+        onChangeText={(t: string) => setContact(t.replace(/[^0-9]/g, ''))}
         placeholder="XXXXX XXXXX" required keyboardType="phone-pad" maxLength={10} prefix="+91"
       />
       <InputField label="Email" value={email} onChangeText={setEmail} placeholder="store@example.com" keyboardType="email-address" maxLength={100} />
@@ -403,36 +481,27 @@ export default function CreateStoreScreen() {
     <>
       <InputField
         label="PIN Code" value={pin} onChangeText={handlePinChange}
-        placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6}
-        loading={loadingPin}
+        placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6} loading={loadingPin}
       />
       <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required maxLength={200} />
       <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" maxLength={200} />
       <InputField label="City" value={city} onChangeText={setCity} placeholder="Enter city" required maxLength={50} />
       <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required editable={pin.length !== 6} maxLength={50} />
       <DropdownField label="State" value={state} onPress={() => setShowStatePicker(true)} placeholder="Select state" required disabled={pin.length === 6} />
-      
       {isManualArea ? (
-        <InputField 
-          label="Area" 
-          value={areaName} 
-          onChangeText={setAreaName} 
-          placeholder="Enter area name" 
-          required 
+        <InputField
+          label="Area" value={areaName} onChangeText={setAreaName} placeholder="Enter area name" required
           rightElement={
             <TouchableOpacity onPress={() => { setIsManualArea(false); setAreaName(''); }}>
-              <Text className="text-[#1A3F75] text-[10px] font-bold mr-2">SELECT LIST</Text>
+              <Text style={{ color: '#1A3F75', fontSize: 10, fontWeight: '700', marginRight: 8 }}>SELECT LIST</Text>
             </TouchableOpacity>
           }
         />
       ) : (
-        <DropdownField 
-          label="Area" 
-          value={selectedRouteObj?.areas?.find(a => a.id.toString() === areaId)?.name || ''} 
-          onPress={() => setShowAreaPicker(true)} 
-          placeholder="Select area" 
-          required 
-          disabled={!routeId} 
+        <DropdownField
+          label="Area"
+          value={selectedRouteObj?.areas?.find((a: any) => a.id.toString() === areaId)?.name || ''}
+          onPress={() => setShowAreaPicker(true)} placeholder="Select area" required disabled={!routeId}
         />
       )}
     </>
@@ -441,49 +510,75 @@ export default function CreateStoreScreen() {
   const renderStep3 = () => (
     <>
       <InputField label="License No" value={licenseNo} onChangeText={setLicenseNo} placeholder="Enter license number" maxLength={20} required autoCapitalize="characters" />
-      <InputField label="FSSAI License" value={fssaiLicense} onChangeText={(t: string) => setFssaiLicense(t.replace(/[^0-9]/g, ''))} placeholder="Enter 14-digit FSSAI" maxLength={14} keyboardType="number-pad" required />
       <InputField
-        label="GST Number"
-        value={gstNumber}
+        label="FSSAI License" value={fssaiLicense}
+        onChangeText={(t: string) => setFssaiLicense(t.replace(/[^0-9]/g, ''))}
+        placeholder="Enter 14-digit FSSAI" maxLength={14} keyboardType="number-pad" required
+      />
+      <InputField
+        label="GST Number" value={gstNumber}
         onChangeText={(t: string) => setGstNumber(t.toUpperCase())}
-        placeholder="Enter 15-digit GST number"
-        maxLength={15}
-        required
-        autoCapitalize="characters"
+        placeholder="Enter 15-digit GST number" maxLength={15} required autoCapitalize="characters"
         loading={isValidatingGST}
         rightElement={
           <TouchableOpacity
-            className="bg-[#1A3F75] px-3 py-1.5 rounded-lg mr-1.5"
+            style={{ backgroundColor: '#1A3F75', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 6 }}
             onPress={handleValidateGST}
             disabled={isValidatingGST}
           >
-            <Text className="text-white text-[10px] font-bold">VALIDATE</Text>
+            <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>VALIDATE</Text>
           </TouchableOpacity>
         }
       />
-      <InputField label="PAN Number" value={panNumber} onChangeText={(t: string) => setPanNumber(t.toUpperCase())} placeholder="Enter 10-digit PAN number" maxLength={10} required autoCapitalize="characters" />
+      <InputField
+        label="PAN Number" value={panNumber}
+        onChangeText={(t: string) => setPanNumber(t.toUpperCase())}
+        placeholder="Enter 10-digit PAN number" maxLength={10} required autoCapitalize="characters"
+      />
     </>
   );
 
+  // KEY FIX for review images:
+  // - Removed nested ScrollView (was causing images to not render)
+  // - Images wrapped in a View with overflow:'hidden' + explicit width/height
+  // - All styles are inline (no className) so NativeWind can't interfere
+  // - Unique keys use prefix to avoid React key collisions across re-renders
   const renderStep4 = () => (
     <>
-      {/* Images preview */}
       {storeImages.length > 0 && (
-        <View className="mb-4">
-          <Text className="text-xs font-bold text-gray-400 uppercase mb-2">Store Images</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 8 }}>
+            Store Images ({storeImages.length})
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {storeImages.map((uri, i) => (
-              <Image key={i} source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8, marginRight: 8, backgroundColor: '#E5E7EB' }} resizeMode="cover" />
+              <View
+                key={`review-img-${i}`}
+                style={{
+                  width: 72, height: 72, borderRadius: 12,
+                  marginRight: 10, marginBottom: 10,
+                  backgroundColor: '#E5E7EB', overflow: 'hidden',
+                  borderWidth: 1, borderColor: '#E5E7EB'
+                }}
+              >
+                <Image
+                  key={`img-comp-${uri}`}
+                  source={{ uri }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                  onError={(e) => console.warn(`Review image ${i} failed to load:`, e.nativeEvent.error)}
+                />
+              </View>
             ))}
-          </ScrollView>
+          </View>
         </View>
       )}
 
       {/* Personal Section */}
-      <View className="bg-white rounded-xl p-4 mb-3 shadow-sm">
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-sm font-bold text-gray-800">Personal Details</Text>
-          <TouchableOpacity onPress={() => setCurrentStep(0)} className="p-1">
+      <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>Personal Details</Text>
+          <TouchableOpacity onPress={() => setCurrentStep(0)} style={{ padding: 4 }}>
             <Feather name="edit-2" size={16} color="#1A3F75" />
           </TouchableOpacity>
         </View>
@@ -495,10 +590,10 @@ export default function CreateStoreScreen() {
       </View>
 
       {/* Address Section */}
-      <View className="bg-white rounded-xl p-4 mb-3 shadow-sm">
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-sm font-bold text-gray-800">Address</Text>
-          <TouchableOpacity onPress={() => setCurrentStep(1)} className="p-1">
+      <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>Address</Text>
+          <TouchableOpacity onPress={() => setCurrentStep(1)} style={{ padding: 4 }}>
             <Feather name="edit-2" size={16} color="#1A3F75" />
           </TouchableOpacity>
         </View>
@@ -508,14 +603,17 @@ export default function CreateStoreScreen() {
         <ReviewItem label="District" value={district} />
         <ReviewItem label="PIN Code" value={pin} />
         <ReviewItem label="State" value={state} />
-        <ReviewItem label="Area" value={isManualArea ? areaName : (selectedRouteObj?.areas?.find(a => a.id.toString() === areaId)?.name || '')} />
+        <ReviewItem
+          label="Area"
+          value={isManualArea ? areaName : (selectedRouteObj?.areas?.find((a: any) => a.id.toString() === areaId)?.name || '')}
+        />
       </View>
 
       {/* Legal Section */}
-      <View className="bg-white rounded-xl p-4 mb-3 shadow-sm">
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-sm font-bold text-gray-800">Legal Details</Text>
-          <TouchableOpacity onPress={() => setCurrentStep(2)} className="p-1">
+      <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>Legal Details</Text>
+          <TouchableOpacity onPress={() => setCurrentStep(2)} style={{ padding: 4 }}>
             <Feather name="edit-2" size={16} color="#1A3F75" />
           </TouchableOpacity>
         </View>
@@ -527,74 +625,70 @@ export default function CreateStoreScreen() {
     </>
   );
 
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <View className="flex-1 bg-[#F3F6F8]">
-      {/* ─── Header ─────────────────────────────────────── */}
+    <View style={{ flex: 1, backgroundColor: '#F3F6F8' }}>
+
+      {/* Header */}
       <LinearGradient
         colors={['#1A3F75', '#2D5A9E']}
-        style={{ paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 16, paddingBottom: 20, paddingHorizontal: 20 }}
+        style={{
+          paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 16,
+          paddingBottom: 20,
+          paddingHorizontal: 20,
+        }}
       >
-        <View className="flex-row items-center mb-5">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text className="text-white text-lg font-bold flex-1">Create New Store</Text>
-          <Text className="text-white/60 text-xs font-medium">
+          <Text style={{ color: 'white', fontSize: 18, fontWeight: '700', flex: 1 }}>Create New Store</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' }}>
             Step {currentStep + 1} of {STEPS.length}
           </Text>
         </View>
 
-        {/* ─── Step Progress ─────────────────────────────── */}
-        <View className="mt-2 mb-2">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
-            {STEPS.map((step, index) => {
-              const isCompleted = index < currentStep;
-              const isActive = index === currentStep;
-              return (
-                <React.Fragment key={step}>
-                  {/* Step Item */}
-                  <TouchableOpacity
-                    className="flex-row items-center mr-2"
-                    onPress={() => {
-                      if (index <= currentStep) setCurrentStep(index);
-                    }}
-                  >
-                    <View className={`w-6 h-6 rounded-full items-center justify-center ${
-                      isCompleted ? 'bg-[#059669]' : isActive ? 'bg-white' : 'bg-white/20'
-                    }`}>
-                      {isCompleted ? (
-                        <Ionicons name="checkmark" size={14} color="white" />
-                      ) : (
-                        <Text className={`text-[11px] font-bold ${isActive ? 'text-[#1A3F75]' : 'text-white/60'}`}>
-                          {index + 1}
-                        </Text>
-                      )}
-                    </View>
-                    <Text className={`text-[12px] font-bold ml-2 ${isCompleted ? 'text-white' : isActive ? 'text-white' : 'text-white/60'}`}>
-                      {step}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Connector */}
-                  {index < STEPS.length - 1 && (
-                    <View className="justify-center mr-2">
-                       <View className="w-8 h-[2px] bg-white/40" />
-                    </View>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </ScrollView>
-        </View>
+        {/* Step Progress */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+          {STEPS.map((step, index) => {
+            const isCompleted = index < currentStep;
+            const isActive = index === currentStep;
+            return (
+              <React.Fragment key={step}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}
+                  onPress={() => { if (index <= currentStep) setCurrentStep(index); }}
+                >
+                  <View style={{
+                    width: 24, height: 24, borderRadius: 12,
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: isCompleted ? '#059669' : isActive ? 'white' : 'rgba(255,255,255,0.2)',
+                  }}>
+                    {isCompleted
+                      ? <Ionicons name="checkmark" size={14} color="white" />
+                      : <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? '#1A3F75' : 'rgba(255,255,255,0.6)' }}>{index + 1}</Text>
+                    }
+                  </View>
+                  <Text style={{
+                    fontSize: 12, fontWeight: '700', marginLeft: 8,
+                    color: isActive || isCompleted ? 'white' : 'rgba(255,255,255,0.6)',
+                  }}>{step}</Text>
+                </TouchableOpacity>
+                {index < STEPS.length - 1 && (
+                  <View style={{ justifyContent: 'center', marginRight: 8 }}>
+                    <View style={{ width: 32, height: 2, backgroundColor: 'rgba(255,255,255,0.4)' }} />
+                  </View>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </ScrollView>
       </LinearGradient>
 
-      {/* ─── Form Body ───────────────────────────────────── */}
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      {/* Form Body */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          className="flex-1 px-5 pt-5"
+          style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
           contentContainerStyle={{ paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -605,52 +699,59 @@ export default function CreateStoreScreen() {
           {currentStep === 3 && renderStep4()}
         </ScrollView>
 
-        {/* ─── Bottom Action Bar ────────────────────────────── */}
-        <View
-          className="bg-white border-t border-gray-100 px-5 flex-row gap-3"
-          style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : Math.max(insets.bottom + 8, 16), paddingTop: 12 }}
-        >
+        {/* Bottom Action Bar */}
+        <View style={{
+          backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F3F4F6',
+          paddingHorizontal: 20, paddingTop: 12,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : Math.max(insets.bottom + 8, 16),
+          flexDirection: 'row', gap: 12,
+        }}>
           {currentStep > 0 && (
             <TouchableOpacity
-              className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
+              style={{ flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center' }}
               onPress={handlePrevious}
+              disabled={isSubmitting}
             >
-              <Text className="text-gray-600 font-bold text-[14px]">Previous</Text>
+              <Text style={{ color: '#4B5563', fontWeight: '700', fontSize: 14 }}>Previous</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+            style={{
+              flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center',
+              backgroundColor: isSubmitting ? 'rgba(26,63,117,0.6)' : '#1A3F75',
+            }}
             onPress={currentStep === 3 ? handleSubmit : handleNext}
             disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text className="text-white font-bold text-[14px]">
-                {currentStep === 3 ? 'Submit' : 'Next'}
-              </Text>
-            )}
+            {isSubmitting
+              ? <ActivityIndicator size="small" color="white" />
+              : <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>{currentStep === 3 ? 'Submit' : 'Next'}</Text>
+            }
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
-      {/* ─── Shop Type Picker ─────────────────────────────── */}
+      {/* ── Shop Type Picker ── */}
       <Modal visible={showShopTypePicker} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-lg font-bold text-gray-800">Select Shop Type</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Shop Type</Text>
               <TouchableOpacity onPress={() => setShowShopTypePicker(false)}>
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {SHOP_TYPES.map((type) => (
+            {SHOP_TYPES.map(type => (
               <TouchableOpacity
                 key={type}
-                className={`flex-row justify-between items-center p-4 rounded-xl mb-3 ${shopType === type ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                style={{
+                  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                  padding: 16, borderRadius: 12, marginBottom: 12,
+                  backgroundColor: shopType === type ? '#EFF6FF' : '#F9FAFB',
+                }}
                 onPress={() => { setShopType(type); setShowShopTypePicker(false); }}
               >
-                <Text className={`font-bold ${shopType === type ? 'text-[#1A3F75]' : 'text-gray-600'}`}>{type}</Text>
+                <Text style={{ fontWeight: '700', color: shopType === type ? '#1A3F75' : '#4B5563' }}>{type}</Text>
                 {shopType === type && <Ionicons name="checkmark-circle" size={24} color="#1A3F75" />}
               </TouchableOpacity>
             ))}
@@ -658,24 +759,28 @@ export default function CreateStoreScreen() {
         </View>
       </Modal>
 
-      {/* ─── State Picker ─────────────────────────────────── */}
+      {/* ── State Picker ── */}
       <Modal visible={showStatePicker} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-lg font-bold text-gray-800">Select State</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select State</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)}>
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {INDIAN_STATES.map((s) => (
+              {INDIAN_STATES.map(s => (
                 <TouchableOpacity
                   key={s}
-                  className={`flex-row justify-between items-center p-3.5 rounded-xl mb-2 ${state === s ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                  style={{
+                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                    padding: 14, borderRadius: 12, marginBottom: 8,
+                    backgroundColor: state === s ? '#EFF6FF' : '#F9FAFB',
+                  }}
                   onPress={() => { setState(s); setShowStatePicker(false); }}
                 >
-                  <Text className={`font-medium text-sm ${state === s ? 'text-[#1A3F75] font-bold' : 'text-gray-600'}`}>{s}</Text>
+                  <Text style={{ fontWeight: state === s ? '700' : '500', fontSize: 14, color: state === s ? '#1A3F75' : '#4B5563' }}>{s}</Text>
                   {state === s && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
                 </TouchableOpacity>
               ))}
@@ -684,38 +789,12 @@ export default function CreateStoreScreen() {
         </View>
       </Modal>
 
-      {/* ─── Route Picker ─────────────────────────────────── */}
-      <Modal visible={showRoutePicker} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-lg font-bold text-gray-800">Select Route</Text>
-              <TouchableOpacity onPress={() => setShowRoutePicker(false)}>
-                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {routes.map((r) => (
-                <TouchableOpacity
-                  key={r.id}
-                  className={`flex-row justify-between items-center p-3.5 rounded-xl mb-2 ${routeId === r.id.toString() ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
-                  onPress={() => { setRouteId(r.id.toString()); setAreaId(''); setShowRoutePicker(false); }}
-                >
-                  <Text className={`font-medium text-sm ${routeId === r.id.toString() ? 'text-[#1A3F75] font-bold' : 'text-gray-600'}`}>{r.name}</Text>
-                  {routeId === r.id.toString() && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ─── Area Picker ─────────────────────────────────── */}
+      {/* ── Area Picker ── */}
       <Modal visible={showAreaPicker} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-lg font-bold text-gray-800">Select Area</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Area</Text>
               <TouchableOpacity onPress={() => setShowAreaPicker(false)}>
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
@@ -724,87 +803,116 @@ export default function CreateStoreScreen() {
               {selectedRouteObj?.areas?.map((a: any) => (
                 <TouchableOpacity
                   key={a.id}
-                  className={`flex-row justify-between items-center p-3.5 rounded-xl mb-2 ${areaId === a.id.toString() ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                  style={{
+                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                    padding: 14, borderRadius: 12, marginBottom: 8,
+                    backgroundColor: areaId === a.id.toString() ? '#EFF6FF' : '#F9FAFB',
+                  }}
                   onPress={() => { setAreaId(a.id.toString()); setIsManualArea(false); setShowAreaPicker(false); }}
                 >
-                  <Text className={`font-medium text-sm ${areaId === a.id.toString() ? 'text-[#1A3F75] font-bold' : 'text-gray-600'}`}>{a.name}</Text>
+                  <Text style={{ fontWeight: areaId === a.id.toString() ? '700' : '500', fontSize: 14, color: areaId === a.id.toString() ? '#1A3F75' : '#4B5563' }}>{a.name}</Text>
                   {areaId === a.id.toString() && <Ionicons name="checkmark-circle" size={24} color="#1A3F75" />}
                 </TouchableOpacity>
               ))}
-              
-              {/* Add New Area Button */}
               <TouchableOpacity
-                className="flex-row items-center justify-center p-4 rounded-xl border-2 border-dashed border-[#1A3F75] mt-2 bg-[#F0F7FF]"
-                onPress={() => {
-                  setIsManualArea(true);
-                  setAreaId('');
-                  setShowAreaPicker(false);
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  padding: 16, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed',
+                  borderColor: '#1A3F75', marginTop: 8, backgroundColor: '#F0F7FF',
                 }}
+                onPress={() => { setIsManualArea(true); setAreaId(''); setShowAreaPicker(false); }}
               >
                 <Ionicons name="add-circle-outline" size={20} color="#1A3F75" />
-                <Text className="ml-2 font-bold text-[#1A3F75]">Can't find your area? Add New</Text>
+                <Text style={{ marginLeft: 8, fontWeight: '700', color: '#1A3F75' }}>Can't find your area? Add New</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* ─── Image Source Modal ────────────────────────────── */}
+      {/* ── Image Source Modal ── */}
       <Modal visible={showImageSourceModal} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl px-5 pt-5" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
-            <Text className="text-lg font-bold text-gray-800 mb-4">Add Store Photo</Text>
-            <TouchableOpacity className="flex-row items-center bg-[#EFF6FF] rounded-2xl p-4 mb-3" onPress={takePhoto}>
-              <View className="w-10 h-10 rounded-full bg-[#1A3F75] items-center justify-center mr-4">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 16 }}>Add Store Photo</Text>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16, marginBottom: 12 }}
+              onPress={takePhoto}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A3F75', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                 <Ionicons name="camera" size={20} color="white" />
               </View>
-              <View className="flex-1">
-                <Text className="text-[15px] font-bold text-gray-800">Take a Photo</Text>
-                <Text className="text-[12px] text-gray-400">Use camera to capture</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937' }}>Take a Photo</Text>
+                <Text style={{ fontSize: 12, color: '#9CA3AF' }}>Use camera to capture</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center bg-[#F0FDF4] rounded-2xl p-4 mb-4" onPress={pickFromGallery}>
-              <View className="w-10 h-10 rounded-full bg-[#059669] items-center justify-center mr-4">
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', borderRadius: 16, padding: 16, marginBottom: 16 }}
+              onPress={pickFromGallery}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                 <Ionicons name="images" size={20} color="white" />
               </View>
-              <View className="flex-1">
-                <Text className="text-[15px] font-bold text-gray-800">Choose from Gallery</Text>
-                <Text className="text-[12px] text-gray-400">Select from your photos</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937' }}>Choose from Gallery</Text>
+                <Text style={{ fontSize: 12, color: '#9CA3AF' }}>Select from your photos</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
-            <TouchableOpacity className="py-3.5 rounded-2xl bg-gray-100 items-center" onPress={() => setShowImageSourceModal(false)}>
-              <Text className="text-gray-600 font-bold text-[14px]">Cancel</Text>
+            <TouchableOpacity
+              style={{ paddingVertical: 14, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center' }}
+              onPress={() => setShowImageSourceModal(false)}
+            >
+              <Text style={{ color: '#4B5563', fontWeight: '700', fontSize: 14 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ─── Popup Modal ──────────────────────────────────── */}
+      {/* ── Popup Modal ── */}
       <Modal visible={popupVisible} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center items-center px-8">
-          <View className="bg-white rounded-3xl w-full p-6 items-center shadow-xl">
-            <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${popupTitle === 'Success' ? 'bg-[#ECFDF5]' : 'bg-[#FEF2F2]'}`}>
-              <Ionicons name={popupTitle === 'Success' ? 'checkmark-circle' : 'alert-circle'} size={32} color={popupTitle === 'Success' ? '#059669' : '#DC2626'} />
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 24, width: '100%', padding: 24, alignItems: 'center' }}>
+            <View style={{
+              width: 64, height: 64, borderRadius: 32,
+              alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+              backgroundColor: popupIsSuccess ? '#ECFDF5' : '#FEF2F2',
+            }}>
+              <Ionicons
+                name={popupIsSuccess ? 'checkmark-circle' : 'alert-circle'}
+                size={32}
+                color={popupIsSuccess ? '#059669' : '#DC2626'}
+              />
             </View>
-            <Text className="text-[18px] font-bold text-gray-800 mb-2 text-center">{popupTitle}</Text>
-            <Text className="text-[14px] text-gray-500 text-center mb-6 leading-5">{popupMessage}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 8, textAlign: 'center' }}>{popupTitle}</Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>{popupMessage}</Text>
             <TouchableOpacity
-              className="w-full py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+              style={{ width: '100%', paddingVertical: 14, borderRadius: 16, backgroundColor: '#1A3F75', alignItems: 'center' }}
               onPress={() => {
                 setPopupVisible(false);
-                if (popupTitle === 'Success') router.back();
+                if (popupIsSuccess) {
+                  setTimeout(() => router.back(), 150);
+                }
               }}
             >
-              <Text className="text-white font-bold text-[14px]">OK</Text>
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ─── Loading Screen ─────────────────────────────────── */}
-      <LoadingScreen visible={isSubmitting} message="Creating Store..." />
+      {/* Standard Loading Overlay */}
+      <Modal visible={isSubmitting} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: 'white', padding: 32, borderRadius: 24, alignItems: 'center', width: '80%', elevation: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } }}>
+            <ActivityIndicator size="large" color="#1A3F75" />
+            <Text style={{ marginTop: 20, fontSize: 16, fontWeight: '700', color: '#1A3F75' }}>Creating Store...</Text>
+            <Text style={{ marginTop: 8, fontSize: 12, color: '#6B7280', textAlign: 'center' }}>Please wait while we process your request.</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

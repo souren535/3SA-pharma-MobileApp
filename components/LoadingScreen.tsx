@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, Modal, Text } from 'react-native';
-import LottieView from 'lottie-react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Text, ActivityIndicator, Animated } from 'react-native';
 
 interface LoadingScreenProps {
   visible: boolean;
@@ -8,59 +7,68 @@ interface LoadingScreenProps {
 }
 
 export default function LoadingScreen({ visible, message = 'Loading...' }: LoadingScreenProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [visible]);
+
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]} pointerEvents="auto">
+      <View style={styles.backdrop}>
         <View style={styles.content}>
-          <LottieView
-            source={require('../assets/animation/Loding.json')}
-            autoPlay
-            loop
-            style={styles.lottie}
-            colorFilters={[
-              {
-                keypath: '**', // Target all paths in the Lottie animation
-                color: '#1A3F75', // Base blue theme color
-              },
-            ]}
-          />
+          <ActivityIndicator size="large" color="#1A3F75" style={{ marginBottom: 4 }} />
           <Text style={styles.text}>{message}</Text>
         </View>
       </View>
-    </Modal>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     backgroundColor: 'white',
-    padding: 30,
-    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 40,
+    borderRadius: 20,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 10,
-    minWidth: 200,
-  },
-  lottie: {
-    width: 120,
-    height: 120,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 12,
+    minWidth: 180,
   },
   text: {
-    marginTop: 15,
-    fontSize: 16,
+    marginTop: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1A3F75',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 });

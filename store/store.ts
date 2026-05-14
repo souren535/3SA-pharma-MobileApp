@@ -161,14 +161,11 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     }
   },
   createShop: async (shopData: FormData) => {
-    set({ isLoading: true });
-    try {
-      const response = await shopService.createShop(shopData);
-      await get().fetchShops(); // refresh list
-      return response;
-    } finally {
-      set({ isLoading: false });
-    }
+    const response = await shopService.createShop(shopData);
+    // Refresh shop list in background — don't let a list-fetch failure
+    // surface as a store-creation failure to the user
+    try { await get().fetchShops(); } catch {}
+    return response;
   },
   validateGST: async (gstNumber: string) => {
     try {
