@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useShopStore, useRouteStore } from '../../store/store';
+import { compressToWebP } from '../../utils/imageCompress';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 const SHOP_TYPES = ['Retail', 'Wholesaler'];
@@ -224,26 +225,18 @@ export default function CreateStoreScreen() {
   };
 
   // ── Image handling ──────────────────────────────────────────────────────────
-  // Copy images from volatile ImagePicker cache to the persistent document
-  // directory so they survive until review/upload.
-  const persistImage = async (sourceUri: string): Promise<string> => {
+  // Compress image to WebP and return the new stable URI.
+  // manipulateAsync saves the output to a new file in the cache,
+  // which also solves the volatile ImagePicker cache issue.
+  const processImage = async (sourceUri: string): Promise<string> => {
     try {
-      const ext = sourceUri.split('.').pop() || 'jpg';
-      const fileName = `shop_img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const destUri = `${FileSystem.documentDirectory}${fileName}`;
-
-      // Ensure the source has file:// scheme for FileSystem
-      let normalizedSource = sourceUri;
-      if (!sourceUri.startsWith('file://') && !sourceUri.startsWith('content://') && !sourceUri.startsWith('http')) {
-        normalizedSource = `file://${sourceUri}`;
-      }
-
-      await FileSystem.copyAsync({ from: normalizedSource, to: destUri });
-      console.log('Image persisted to:', destUri);
-      return destUri;
+      // compressToWebP returns a new URI in a stable location
+      const compressedUri = await compressToWebP(sourceUri, 0.7);
+      console.log('Image compressed to WebP:', compressedUri);
+      return compressedUri;
     } catch (err) {
-      console.warn('Failed to persist image, using original URI:', err);
-      // Fallback: return with file:// if missing
+      console.warn('Compression failed, using original:', err);
+      // Fallback: ensure valid file:// scheme
       if (!sourceUri.startsWith('file://') && !sourceUri.startsWith('content://') && !sourceUri.startsWith('http')) {
         return `file://${sourceUri}`;
       }
@@ -262,10 +255,14 @@ export default function CreateStoreScreen() {
         selectionLimit: 5,
       });
       if (!result.canceled) {
-        const persistedUris = await Promise.all(
-          result.assets.map(a => persistImage(a.uri))
-        );
-        setStoreImages(prev => [...prev, ...persistedUris]);
+        // MUST process sequentially on Android to prevent expo-image-manipulator 
+        // native module from crashing or returning corrupted URIs during concurrent execution
+        const processedUris = [];
+        for (const asset of result.assets) {
+          const processedUri = await processImage(asset.uri);
+          processedUris.push(processedUri);
+        }
+        setStoreImages(prev => [...prev, ...processedUris]);
       }
     } catch (err) {
       console.warn('Gallery error:', err);
@@ -287,8 +284,8 @@ export default function CreateStoreScreen() {
         allowsEditing: false,
       });
       if (!result.canceled && result.assets?.length > 0) {
-        const persistedUri = await persistImage(result.assets[0].uri);
-        setStoreImages(prev => [...prev, persistedUri]);
+        const processedUri = await processImage(result.assets[0].uri);
+        setStoreImages(prev => [...prev, processedUri]);
       }
     } catch (err) {
       console.warn('Camera error:', err);
@@ -361,21 +358,26 @@ export default function CreateStoreScreen() {
     try {
       const formData = new FormData();
 
-      // Attach images to FormData using explicit indexed keys
-      // (images[0], images[1], etc.) to avoid RN URL-encoding brackets
+      // Attach compressed WebP images to FormData
       let imageCount = 0;
       for (let i = 0; i < storeImages.length; i++) {
-        const uri = storeImages[i];
+        let uri = storeImages[i];
         if (!uri) continue;
+        
+        // React Native fetch requires the URI to have a scheme (file:// or content://)
+        if (Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('http')) {
+          uri = `file://${uri}`;
+        }
+
         try {
-          const name = `shop_image_${i}.jpg`;
+          const name = `shop_image_${i}.webp`;
           const fileObj = {
-            uri: uri,
-            name: name,
-            type: 'image/jpeg',
+            uri: String(uri),
+            name: String(name),
+            type: 'image/webp',
           };
           formData.append(`images[${imageCount}]`, fileObj as any);
-          console.log(`Attached images[${imageCount}]: uri=${uri}, name=${name}`);
+          console.log(`Attached image[${imageCount}]: uri=${uri}, name=${name}`);
           imageCount++;
         } catch (e) {
           console.warn(`Error appending image ${i}:`, e);
@@ -383,31 +385,32 @@ export default function CreateStoreScreen() {
       }
       console.log(`Total images attached: ${imageCount}`);
 
-      formData.append('shop_name', shopName.trim());
-      formData.append('owner_name', ownerName.trim());
-      formData.append('contact', contact.trim());
-      formData.append('email', email.trim());
-      formData.append('shop_type', shopType);
-      formData.append('category', category);
+      // Sanitize all strings to prevent native TypeErrors
+      formData.append('shop_name', String(shopName || '').trim());
+      formData.append('owner_name', String(ownerName || '').trim());
+      formData.append('contact', String(contact || '').trim());
+      formData.append('email', String(email || '').trim());
+      formData.append('shop_type', String(shopType || '').trim());
+      formData.append('category', String(category || '').trim());
 
       const fullAddress = [address1, address2, city, district, `${state} - ${pin}`]
         .filter(Boolean).join(', ');
-      formData.append('address', fullAddress);
+      formData.append('address', String(fullAddress || '').trim());
 
       // Safe 0,0 fallback if GPS was never captured — never block submission
       formData.append('latitude', String(location?.latitude ?? 0));
       formData.append('longitude', String(location?.longitude ?? 0));
 
-      formData.append('license_no', licenseNo.trim());
-      formData.append('fassai_license', fssaiLicense.trim());
-      formData.append('gst_number', gstNumber.trim());
-      formData.append('pan_number', panNumber.trim());
-      formData.append('route_id', routeId);
+      formData.append('license_no', String(licenseNo || '').trim());
+      formData.append('fassai_license', String(fssaiLicense || '').trim());
+      formData.append('gst_number', String(gstNumber || '').trim());
+      formData.append('pan_number', String(panNumber || '').trim());
+      formData.append('route_id', String(routeId || '').trim());
 
       if (isManualArea) {
-        formData.append('area_name', areaName.trim());
+        formData.append('area_name', String(areaName || '').trim());
       } else {
-        formData.append('area_id', areaId);
+        formData.append('area_id', String(areaId || '').trim());
       }
 
       await createShop(formData);
