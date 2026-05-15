@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useShopStore, useRouteStore } from '../../store/store';
 import { compressToWebP } from '../../utils/imageCompress';
+import { scale, moderateScale, verticalScale } from '../../utils/scale';
 
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 const SHOP_TYPES = ['Retail', 'Wholesaler'];
@@ -31,13 +32,13 @@ const InputField = ({
   keyboardType = 'default' as any, multiline = false, maxLength, prefix,
   editable = true, loading = false, rightElement, autoCapitalize = 'none',
 }: any) => (
-  <View style={{ marginBottom: 16 }}>
-    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>
+  <View style={{ marginBottom: scale(16) }}>
+    <Text style={{ fontSize: moderateScale(11), fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: scale(6) }}>
       {label}{required ? ' *' : ''}
     </Text>
     <View style={{
       flexDirection: 'row', alignItems: 'center',
-      borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6',
+      borderRadius: scale(12), borderWidth: 1, borderColor: '#F3F4F6',
       backgroundColor: editable ? '#F9FAFB' : '#F3F4F6',
     }}>
       {prefix && (
@@ -45,9 +46,9 @@ const InputField = ({
       )}
       <TextInput
         style={{
-          flex: 1, padding: 14, fontSize: 14,
+          flex: 1, padding: scale(14), fontSize: moderateScale(14),
           color: editable ? '#1F2937' : '#6B7280',
-          ...(multiline ? { minHeight: 60, textAlignVertical: 'top' } : {}),
+          ...(multiline ? { minHeight: scale(60), textAlignVertical: 'top' } : {}),
         }}
         placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
@@ -73,21 +74,21 @@ const InputField = ({
 
 // ─── Dropdown Component ───────────────────────────────────────────────────────
 const DropdownField = ({ label, value, onPress, placeholder, required = false, disabled = false }: any) => (
-  <View style={{ marginBottom: 16 }}>
-    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>
+  <View style={{ marginBottom: scale(16) }}>
+    <Text style={{ fontSize: moderateScale(11), fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: scale(6) }}>
       {label}{required ? ' *' : ''}
     </Text>
     <TouchableOpacity
       style={{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6',
-        padding: 14, backgroundColor: disabled ? '#F3F4F6' : '#F9FAFB',
+        borderRadius: scale(12), borderWidth: 1, borderColor: '#F3F4F6',
+        padding: scale(14), backgroundColor: disabled ? '#F3F4F6' : '#F9FAFB',
       }}
       onPress={disabled ? undefined : onPress}
       activeOpacity={disabled ? 1 : 0.7}
     >
       <Text style={{
-        fontSize: 14, fontWeight: value ? '500' : '400',
+        fontSize: moderateScale(14), fontWeight: value ? '500' : '400',
         color: value ? (disabled ? '#6B7280' : '#1F2937') : '#9CA3AF',
       }}>
         {value || placeholder}
@@ -99,9 +100,9 @@ const DropdownField = ({ label, value, onPress, placeholder, required = false, d
 
 // ─── Review Item ──────────────────────────────────────────────────────────────
 const ReviewItem = ({ label, value }: { label: string; value: string }) => (
-  <View style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
-    <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>{label}</Text>
-    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F2937' }} numberOfLines={2}>
+  <View style={{ paddingVertical: scale(10), borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+    <Text style={{ fontSize: moderateScale(11), color: '#6B7280', marginBottom: scale(2) }}>{label}</Text>
+    <Text style={{ fontSize: moderateScale(13), fontWeight: '700', color: '#1F2937' }} numberOfLines={2}>
       {value || '—'}
     </Text>
   </View>
@@ -758,23 +759,22 @@ export default function CreateStoreScreen() {
       {!isKeyboardVisible && (
         <View style={{
           backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F3F4F6',
-          paddingHorizontal: 20, paddingTop: 12,
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 12 : insets.bottom + 24,
-          marginBottom: 40, // Increased gap for better visibility
-          flexDirection: 'row', gap: 12,
+          paddingHorizontal: scale(20), paddingTop: scale(12),
+          paddingBottom: Math.max(insets.bottom, scale(16)),
+          flexDirection: 'row', gap: scale(12),
         }}>
           {currentStep > 0 && (
             <TouchableOpacity
-              style={{ flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center' }}
+              style={{ flex: 1, paddingVertical: scale(14), borderRadius: scale(16), backgroundColor: '#F3F4F6', alignItems: 'center' }}
               onPress={handlePrevious}
               disabled={isSubmitting}
             >
-              <Text style={{ color: '#4B5563', fontWeight: '700', fontSize: 14 }}>Previous</Text>
+              <Text style={{ color: '#4B5563', fontWeight: '700', fontSize: moderateScale(14) }}>Previous</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
             style={{
-              flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center',
+              flex: 1, paddingVertical: scale(14), borderRadius: scale(16), alignItems: 'center',
               backgroundColor: isSubmitting ? 'rgba(26,63,117,0.6)' : '#1A3F75',
             }}
             onPress={currentStep === 3 ? handleSubmit : handleNext}
@@ -782,7 +782,7 @@ export default function CreateStoreScreen() {
           >
             {isSubmitting
               ? <ActivityIndicator size="small" color="white" />
-              : <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>{currentStep === 3 ? 'Submit' : 'Next'}</Text>
+              : <Text style={{ color: 'white', fontWeight: '700', fontSize: moderateScale(14) }}>{currentStep === 3 ? 'Submit' : 'Next'}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -791,7 +791,7 @@ export default function CreateStoreScreen() {
       {/* ── Shop Type Picker ── */}
       <Modal visible={showShopTypePicker} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: scale(24), borderTopRightRadius: scale(24), padding: scale(24), paddingBottom: Math.max(insets.bottom, scale(20)) }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Shop Type</Text>
               <TouchableOpacity onPress={() => setShowShopTypePicker(false)}>
@@ -819,7 +819,7 @@ export default function CreateStoreScreen() {
       {/* ── State Picker ── */}
       <Modal visible={showStatePicker} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: scale(24), borderTopRightRadius: scale(24), padding: scale(24), paddingBottom: Math.max(insets.bottom, scale(20)), maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select State</Text>
               <TouchableOpacity onPress={() => setShowStatePicker(false)}>
@@ -849,7 +849,7 @@ export default function CreateStoreScreen() {
       {/* ── Area Picker ── */}
       <Modal visible={showAreaPicker} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 22 : 60, maxHeight: '95%' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: scale(24), borderTopRightRadius: scale(24), padding: scale(24), paddingBottom: Math.max(insets.bottom, scale(20)), maxHeight: '95%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Area</Text>
               <TouchableOpacity onPress={() => setShowAreaPicker(false)}>
@@ -890,7 +890,7 @@ export default function CreateStoreScreen() {
       {/* ── Image Source Modal ── */}
       <Modal visible={showImageSourceModal} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 22 : 60 }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: scale(24), borderTopRightRadius: scale(24), paddingHorizontal: scale(20), paddingTop: scale(20), paddingBottom: Math.max(insets.bottom, scale(20)) }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 16 }}>Add Store Photo</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16, marginBottom: 12 }}

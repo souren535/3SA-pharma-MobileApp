@@ -24,6 +24,7 @@ import {
   useProductStore,
   useShopStore,
 } from "../../store/store";
+import { moderateScale, scale } from "../../utils/scale";
 
 const STEPS = ["Store", "Products", "Review"];
 
@@ -64,6 +65,7 @@ export default function OrderCreateScreen() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
+  const [isChangingStore, setIsChangingStore] = useState(false);
   const [modalSearch, setModalSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     null,
@@ -72,6 +74,7 @@ export default function OrderCreateScreen() {
   const [deliveryDate, setDeliveryDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [storeSearch, setStoreSearch] = useState("");
   const [modalConfig, setModalConfig] = useState({
     visible: false,
     type: "info" as "success" | "error" | "info",
@@ -106,6 +109,13 @@ export default function OrderCreateScreen() {
       selectedStoreId || (storeIdParam ? parseInt(storeIdParam) : null);
     return shops.find((s) => s.id === id);
   }, [shops, selectedStoreId, storeIdParam]);
+
+  const filteredShops = useMemo(() => {
+    return shops.filter((s) =>
+      s.shop_name.toLowerCase().includes(storeSearch.toLowerCase()) ||
+      (s.category && s.category.toLowerCase().includes(storeSearch.toLowerCase()))
+    );
+  }, [shops, storeSearch]);
 
   const filteredModalProducts = useMemo(() => {
     return products.filter((p) => {
@@ -258,9 +268,22 @@ export default function OrderCreateScreen() {
         <View style={styles.rowCenter}>
           <Image source={{ uri: img }} style={styles.storeImg} />
           <View style={styles.flex1}>
-            <Text style={styles.storeNameText} numberOfLines={1}>
-              {name}
-            </Text>
+            <View
+              style={[styles.rowCenter, { justifyContent: "space-between" }]}
+            >
+              <Text style={styles.storeNameText} numberOfLines={1}>
+                {name}
+              </Text>
+              {!fromStore && (
+                <TouchableOpacity
+                  onPress={() => setIsChangingStore(true)}
+                  style={styles.changeBtn}
+                >
+                  <MaterialIcons name="edit" size={16} color="#1A3F75" />
+                  <Text style={styles.changeBtnText}>Change</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.rowCenter}>
               <View style={styles.categoryBadge}>
                 <Text style={styles.categoryText}>{cat}</Text>
@@ -282,7 +305,7 @@ export default function OrderCreateScreen() {
 
   const renderStep1 = () => (
     <View style={styles.flex1}>
-      {!fromStore && (
+      {!fromStore && (!selectedStoreId || isChangingStore) ? (
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Select Store *</Text>
           <TouchableOpacity
@@ -310,46 +333,73 @@ export default function OrderCreateScreen() {
           </TouchableOpacity>
           {showStoreDropdown && (
             <View style={styles.dropdownMenu}>
-              <ScrollView style={{ maxHeight: 250 }}>
-                {shops.map((store) => (
-                  <TouchableOpacity
-                    key={store.id}
-                    style={[
-                      styles.dropdownItem,
-                      selectedStoreId === store.id && {
-                        backgroundColor: "#EFF6FF",
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedStoreId(store.id);
-                      setSelectedStoreName(store.shop_name);
-                      setShowStoreDropdown(false);
-                    }}
-                  >
-                    <Image
-                      source={{ uri: getStoreImageUrl(store) }}
-                      style={styles.smallAvatar}
-                    />
-                    <View style={styles.flex1}>
-                      <Text style={styles.itemTitle}>{store.shop_name}</Text>
-                      <Text style={styles.itemSubtitle}>{store.category}</Text>
-                    </View>
-                    {selectedStoreId === store.id && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#4C73B6"
-                      />
-                    )}
+              <View style={styles.dropdownSearchContainer}>
+                <Ionicons name="search" size={16} color="#94A3B8" />
+                <TextInput
+                  placeholder="Search stores..."
+                  style={styles.dropdownSearchInput}
+                  value={storeSearch}
+                  onChangeText={setStoreSearch}
+                  placeholderTextColor="#94A3B8"
+                />
+                {storeSearch !== "" && (
+                  <TouchableOpacity onPress={() => setStoreSearch("")}>
+                    <Ionicons name="close-circle" size={16} color="#94A3B8" />
                   </TouchableOpacity>
-                ))}
+                )}
+              </View>
+              <ScrollView 
+                style={{ maxHeight: scale(300) }} 
+                nestedScrollEnabled={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                {filteredShops.length > 0 ? (
+                  filteredShops.map((store) => (
+                    <TouchableOpacity
+                      key={store.id}
+                      style={[
+                        styles.dropdownItem,
+                        selectedStoreId === store.id && {
+                          backgroundColor: "#EFF6FF",
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedStoreId(store.id);
+                        setSelectedStoreName(store.shop_name);
+                        setShowStoreDropdown(false);
+                        setIsChangingStore(false);
+                        setStoreSearch("");
+                      }}
+                    >
+                      <Image
+                        source={{ uri: getStoreImageUrl(store) }}
+                        style={styles.smallAvatar}
+                      />
+                      <View style={styles.flex1}>
+                        <Text style={styles.itemTitle}>{store.shop_name}</Text>
+                        <Text style={styles.itemSubtitle}>{store.category}</Text>
+                      </View>
+                      {selectedStoreId === store.id && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color="#4C73B6"
+                        />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View style={styles.dropdownEmptyState}>
+                    <Text style={styles.dropdownEmptyText}>No stores found</Text>
+                  </View>
+                )}
               </ScrollView>
             </View>
           )}
         </View>
+      ) : (
+        (selectedStoreId || storeIdParam) && renderStoreProfileCard()
       )}
-
-      {(selectedStoreId || storeIdParam) && renderStoreProfileCard()}
 
       <View style={styles.rowGap}>
         <View style={styles.flex1}>
@@ -420,108 +470,117 @@ export default function OrderCreateScreen() {
           </View>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-        >
-          <TouchableOpacity
-            style={[
-              styles.categoryTab,
-              selectedCategoryId === null && { backgroundColor: "#1A3F75" },
-            ]}
-            onPress={() => setSelectedCategoryId(null)}
+        <View style={styles.categoryScrollContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScrollContent}
           >
-            <Text
-              style={[
-                styles.categoryTabText,
-                selectedCategoryId === null && { color: "white" },
-              ]}
-            >
-              All Items
-            </Text>
-          </TouchableOpacity>
-          {categories.map((cat) => (
             <TouchableOpacity
-              key={cat.id}
               style={[
                 styles.categoryTab,
-                selectedCategoryId === cat.id && { backgroundColor: "#1A3F75" },
+                selectedCategoryId === null && styles.categoryTabActive,
               ]}
-              onPress={() => setSelectedCategoryId(cat.id)}
+              onPress={() => setSelectedCategoryId(null)}
             >
               <Text
                 style={[
                   styles.categoryTabText,
-                  selectedCategoryId === cat.id && { color: "white" },
+                  selectedCategoryId === null && styles.categoryTabTextActive,
                 ]}
               >
-                {cat.name}
+                All Items
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.flex1}>
-          {filteredModalProducts.length > 0 ? (
-            filteredModalProducts.map((product) => {
-              const cartItem = cart.find((c) => c.id === product.id);
-              const isSelected = !!cartItem;
-              return (
-                <View
-                  key={product.id}
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryTab,
+                  selectedCategoryId === cat.id && styles.categoryTabActive,
+                ]}
+                onPress={() => setSelectedCategoryId(cat.id)}
+              >
+                <Text
                   style={[
-                    styles.productCard,
-                    isSelected && styles.productCardSelected,
+                    styles.categoryTabText,
+                    selectedCategoryId === cat.id &&
+                      styles.categoryTabTextActive,
                   ]}
                 >
-                  <View style={styles.flex1}>
-                    <Text style={styles.productName}>
-                      {product.product_name}
-                    </Text>
-                    <Text style={styles.productBrand}>
-                      {product.brand?.name || "No Brand"}
-                    </Text>
-                  </View>
-                  <View style={styles.qtyContainer}>
-                    {isSelected ? (
-                      <View style={styles.rowCenter}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.productListContainer}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          >
+            {filteredModalProducts.length > 0 ? (
+              filteredModalProducts.map((product, idx) => {
+                const cartItem = cart.find((c) => c.id === product.id);
+                const isSelected = !!cartItem;
+                return (
+                  <View
+                    key={product.id}
+                    style={[
+                      styles.productListItem,
+                      idx !== filteredModalProducts.length - 1 &&
+                        styles.borderBottom,
+                    ]}
+                  >
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName}>
+                        {product.product_name}
+                      </Text>
+                      <Text style={styles.productBrand}>
+                        {product.brand?.name || "No Brand"}
+                      </Text>
+                    </View>
+                    <View style={styles.qtyContainer}>
+                      {isSelected ? (
+                        <View style={styles.rowCenter}>
+                          <TouchableOpacity
+                            style={styles.qtyBtnSmall}
+                            onPress={() => updateQty(product.id, -1)}
+                          >
+                            <Feather name="minus" size={14} color="#4C73B6" />
+                          </TouchableOpacity>
+                          <Text style={styles.qtyTextSmall}>
+                            {String(cartItem.qty).padStart(2, "0")}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.qtyBtnSmall}
+                            onPress={() => updateQty(product.id, 1)}
+                          >
+                            <Feather name="plus" size={14} color="#4C73B6" />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
                         <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => updateQty(product.id, -1)}
+                          style={styles.addBtnSmall}
+                          onPress={() => toggleProduct(product)}
                         >
-                          <Feather name="minus" size={16} color="#4C73B6" />
+                          <Text style={styles.addBtnTextSmall}>ADD</Text>
                         </TouchableOpacity>
-                        <Text style={styles.qtyText}>
-                          {cartItem.qty < 10 ? `0${cartItem.qty}` : cartItem.qty}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => updateQty(product.id, 1)}
-                        >
-                          <Feather name="plus" size={16} color="#4C73B6" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.addBtn}
-                        onPress={() => toggleProduct(product)}
-                      >
-                        <Text style={styles.addBtnText}>ADD</Text>
-                      </TouchableOpacity>
-                    )}
+                      )}
+                    </View>
                   </View>
-                </View>
-              );
-            })
-          ) : (
-            <View style={styles.emptyBox}>
-              <Ionicons name="search-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyText}>
-                No products match your search
-              </Text>
-            </View>
-          )}
+                );
+              })
+            ) : (
+              <View style={styles.emptyBox}>
+                <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+                <Text style={styles.emptyText}>
+                  No products match your search
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </View>
     );
@@ -534,7 +593,7 @@ export default function OrderCreateScreen() {
         <View style={styles.summaryIconBox}>
           <MaterialIcons name="store" size={24} color="#1A3F75" />
         </View>
-        <View style={styles.flex1}>
+        <View style={[styles.flex1, { marginLeft: 16 }]}>
           <Text style={styles.summaryStoreName}>{selectedStoreName}</Text>
           <Text style={styles.summaryDetails}>
             {deliveryDate.toLocaleDateString()} • {note || "No notes"}
@@ -547,7 +606,7 @@ export default function OrderCreateScreen() {
           <Text style={styles.itemListTitle}>Items List ({cart.length})</Text>
         </View>
         <ScrollView
-          style={{ maxHeight: Platform.OS === 'ios' ? 400 : 350 }}
+          style={{ maxHeight: Platform.OS === "ios" ? 400 : 350 }}
           showsVerticalScrollIndicator={false}
         >
           {cart.map((item, idx) => (
@@ -659,9 +718,9 @@ export default function OrderCreateScreen() {
           style={styles.flex1}
           contentContainerStyle={[
             styles.scrollContent,
-            currentStep === 2 && { paddingBottom: 100 }
+            currentStep === 2 && { paddingBottom: 100 },
           ]}
-          scrollEnabled={currentStep !== 2}
+          scrollEnabled={currentStep === 0 && !showStoreDropdown}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -673,7 +732,12 @@ export default function OrderCreateScreen() {
 
       {/* Bottom Navigation */}
       {!isKeyboardVisible && (
-        <View style={styles.bottomNav}>
+        <View
+          style={[
+            styles.bottomNav,
+            { paddingBottom: Math.max(insets.bottom, scale(16)) },
+          ]}
+        >
           {currentStep > 0 && (
             <TouchableOpacity style={styles.prevBtn} onPress={handlePrevious}>
               <Text style={styles.prevBtnText}>Previous</Text>
@@ -711,58 +775,74 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
   rowCenter: { flexDirection: "row", alignItems: "center" },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    paddingTop: Platform.OS === "ios" ? 60 : 50,
+    paddingHorizontal: scale(20),
+    paddingBottom: scale(24),
+    paddingTop: Platform.OS === "ios" ? scale(60) : scale(50),
   },
-  headerTop: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: scale(20),
+  },
   headerTitle: {
     color: "white",
-    fontSize: 20,
+    fontSize: moderateScale(20),
     fontWeight: "bold",
     flex: 1,
-    marginLeft: 12,
+    marginLeft: scale(12),
   },
   headerStepText: {
     color: "rgba(255,255,255,0.7)",
-    fontSize: 12,
+    fontSize: moderateScale(12),
     fontWeight: "bold",
   },
-  stepItem: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  stepItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: scale(12),
+  },
   stepCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: scale(26),
+    height: scale(26),
+    borderRadius: scale(13),
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNumber: { fontSize: 12, fontWeight: "800" },
-  stepLabel: { fontSize: 13, fontWeight: "700", marginLeft: 8 },
-  stepChevron: { justifyContent: "center", marginRight: 12 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 160 },
+  stepNumber: { fontSize: moderateScale(12), fontWeight: "800" },
+  stepLabel: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    marginLeft: scale(8),
+  },
+  stepChevron: { justifyContent: "center", marginRight: scale(12) },
+  scrollContent: {
+    paddingHorizontal: scale(16),
+    paddingTop: scale(20),
+    paddingBottom: scale(160),
+  },
   label: {
-    fontSize: 11,
+    fontSize: moderateScale(11),
     fontWeight: "bold",
     color: "#64748B",
     textTransform: "uppercase",
-    marginBottom: 10,
-    marginLeft: 4,
+    marginBottom: scale(10),
+    marginLeft: scale(4),
     letterSpacing: 0.5,
   },
   labelCaps: {
-    fontSize: 11,
+    fontSize: moderateScale(11),
     fontWeight: "bold",
     color: "#64748B",
     textTransform: "uppercase",
-    marginBottom: 12,
-    marginLeft: 4,
+    marginBottom: scale(12),
+    marginLeft: scale(4),
     letterSpacing: 0.5,
   },
-  fieldContainer: { marginBottom: 20, marginTop: 20 },
+  fieldContainer: { marginBottom: scale(20), marginTop: scale(20) },
   dropdownTrigger: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: scale(16),
+    padding: scale(16),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -775,23 +855,23 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   dropdownValue: {
-    marginLeft: 12,
-    fontSize: 15,
+    marginLeft: scale(12),
+    fontSize: moderateScale(15),
     fontWeight: "600",
     color: "#1E293B",
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: scale(44),
+    height: scale(44),
+    borderRadius: scale(22),
     backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
   },
   dropdownMenu: {
     backgroundColor: "white",
-    borderRadius: 16,
-    marginTop: 6,
+    borderRadius: scale(16),
+    marginTop: scale(6),
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -802,24 +882,56 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   dropdownItem: {
-    padding: 16,
+    padding: scale(16),
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
+  dropdownSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(8),
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
+  },
+  dropdownSearchInput: {
+    flex: 1,
+    marginLeft: scale(8),
+    fontSize: moderateScale(14),
+    color: "#1E293B",
+    padding: 0,
+  },
+  dropdownEmptyState: {
+    padding: scale(20),
+    alignItems: "center",
+  },
+  dropdownEmptyText: {
+    color: "#94A3B8",
+    fontSize: moderateScale(14),
+  },
   smallAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
     backgroundColor: "#F1F5F9",
   },
-  itemTitle: { fontSize: 12, fontWeight: "600", color: "#1E293B" },
-  itemSubtitle: { fontSize: 10, color: "#94A3B8", marginTop: 2 },
+  itemTitle: {
+    fontSize: moderateScale(12),
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  itemSubtitle: {
+    fontSize: moderateScale(10),
+    color: "#94A3B8",
+    marginTop: scale(2),
+  },
   storeCard: {
     backgroundColor: "white",
-    padding: 10,
-    borderRadius: 20,
+    padding: scale(10),
+    borderRadius: scale(20),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -827,104 +939,130 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 6,
+    marginBottom: scale(6),
   },
   storeImg: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
+    width: scale(50),
+    height: scale(50),
+    borderRadius: scale(12),
     backgroundColor: "#F1F5F9",
-    marginRight: 12,
+    marginRight: scale(12),
   },
-  storeNameText: { fontSize: 13, fontWeight: "bold", color: "#1E293B" },
+  storeNameText: {
+    fontSize: moderateScale(13),
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
   categoryBadge: {
     backgroundColor: "#EFF6FF",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: scale(10),
+    paddingVertical: scale(4),
+    borderRadius: scale(8),
   },
   categoryText: {
-    fontSize: 10,
+    fontSize: moderateScale(10),
     color: "#4C73B6",
     fontWeight: "bold",
     textTransform: "uppercase",
   },
-  phoneText: { fontSize: 12, color: "#64748B", marginLeft: 10 },
-  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 10 },
-  addressText: {
-    fontSize: 10,
+  phoneText: {
+    fontSize: moderateScale(12),
     color: "#64748B",
-    marginLeft: 8,
+    marginLeft: scale(10),
+  },
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: scale(10) },
+  addressText: {
+    fontSize: moderateScale(10),
+    color: "#64748B",
+    marginLeft: scale(8),
     flex: 1,
     lineHeight: 12,
   },
-  rowGap: { flexDirection: "row", gap: 12, marginTop: 4 },
+  rowGap: { flexDirection: "row", gap: scale(12), marginTop: scale(4) },
   datePickerTrigger: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: scale(16),
+    padding: scale(12),
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   dateText: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     color: "#1E293B",
     fontWeight: "600",
-    marginLeft: 8,
+    marginLeft: scale(8),
   },
   textAreaContainer: {
     backgroundColor: "#F1F5F9",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: scale(16),
+    padding: scale(12),
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  textArea: { fontSize: 13, color: "black", minHeight: 70, lineHeight: 16 },
+  textArea: {
+    fontSize: moderateScale(13),
+    color: "black",
+    minHeight: scale(70),
+    lineHeight: 16,
+  },
   centerBox: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 100,
+    paddingVertical: scale(100),
   },
-  loadingText: { color: "#94A3B8", marginTop: 16, fontSize: 15 },
+  loadingText: {
+    color: "#94A3B8",
+    marginTop: scale(16),
+    fontSize: moderateScale(15),
+  },
   searchContainer: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 8,
+    borderRadius: scale(16),
+    padding: scale(8),
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 12,
+    marginBottom: scale(12),
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F1F5F9",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    borderRadius: scale(12),
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(4),
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 13, color: "#1E293B" },
-  categoryScroll: { marginBottom: 12 },
+  searchInput: {
+    flex: 1,
+    marginLeft: scale(8),
+    fontSize: moderateScale(13),
+    color: "#1E293B",
+  },
+  categoryScroll: { marginBottom: scale(12) },
   categoryTab: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 24,
-    marginRight: 10,
+    paddingHorizontal: scale(18),
+    paddingVertical: scale(10),
+    borderRadius: scale(24),
+    marginRight: scale(10),
     backgroundColor: "white",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  categoryTabText: { fontSize: 11, fontWeight: "bold", color: "#64748B" },
+  categoryTabText: {
+    fontSize: moderateScale(11),
+    fontWeight: "bold",
+    color: "#64748B",
+  },
   productCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 8,
-    marginBottom: 6,
-    borderRadius: 20,
+    padding: scale(8),
+    marginBottom: scale(6),
+    borderRadius: scale(20),
     backgroundColor: "white",
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -935,58 +1073,139 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   productCardSelected: { borderColor: "#4C73B6", backgroundColor: "#F0F7FF" },
-  productName: { fontSize: 12, fontWeight: "bold", color: "#1E293B" },
-  productBrand: { fontSize: 10, color: "#64748B", marginTop: 2 },
+  productName: {
+    fontSize: moderateScale(12),
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+  productBrand: {
+    fontSize: moderateScale(10),
+    color: "#64748B",
+    marginTop: scale(2),
+  },
   qtyContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    borderRadius: 12,
+    borderRadius: scale(12),
     borderWidth: 1,
     borderColor: "#E2E8F0",
     overflow: "hidden",
   },
   qtyBtn: {
-    width: 40,
-    height: 40,
+    width: scale(40),
+    height: scale(40),
     alignItems: "center",
     justifyContent: "center",
   },
   qtyText: {
-    fontSize: 12,
+    fontSize: moderateScale(12),
     fontWeight: "bold",
     color: "#1A3F75",
-    marginHorizontal: 4,
+    marginHorizontal: scale(4),
   },
   addBtn: {
     backgroundColor: "#1A3F75",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: scale(20),
+    paddingVertical: scale(10),
+    borderRadius: scale(10),
   },
-  addBtnText: { color: "white", fontSize: 13, fontWeight: "bold" },
+  addBtnText: {
+    color: "white",
+    fontSize: moderateScale(13),
+    fontWeight: "bold",
+  },
+  changeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: scale(10),
+    paddingVertical: scale(6),
+    borderRadius: scale(8),
+  },
+  changeBtnText: {
+    fontSize: moderateScale(11),
+    color: "#1A3F75",
+    fontWeight: "700",
+    marginLeft: scale(4),
+  },
+  categoryScrollContainer: {
+    marginBottom: scale(12),
+  },
+  categoryScrollContent: {
+    paddingRight: scale(20),
+  },
+  categoryTabActive: {
+    backgroundColor: "#1A3F75",
+    borderColor: "#1A3F75",
+  },
+  categoryTabTextActive: {
+    color: "white",
+  },
+  productListContainer: {
+    flex: 1,
+    backgroundColor: "white",
+    borderRadius: scale(20),
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    paddingHorizontal: scale(12),
+  },
+  productListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: scale(12),
+  },
+  productInfo: {
+    flex: 1,
+  },
+  qtyBtnSmall: {
+    width: scale(32),
+    height: scale(32),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyTextSmall: {
+    fontSize: moderateScale(12),
+    fontWeight: "bold",
+    color: "#1A3F75",
+    marginHorizontal: scale(4),
+    minWidth: scale(20),
+    textAlign: "center",
+  },
+  addBtnSmall: {
+    backgroundColor: "#1A3F75",
+    paddingHorizontal: scale(16),
+    paddingVertical: scale(8),
+    borderRadius: scale(8),
+  },
+  addBtnTextSmall: {
+    color: "white",
+    fontSize: moderateScale(11),
+    fontWeight: "bold",
+  },
   emptyBox: {
     alignItems: "center",
-    paddingVertical: 100,
+    paddingVertical: scale(100),
     backgroundColor: "white",
-    borderRadius: 24,
+    borderRadius: scale(24),
     borderStyle: "dashed",
     borderWidth: 2,
     borderColor: "#CBD5E1",
   },
   emptyText: {
     color: "#94A3B8",
-    marginTop: 16,
+    marginTop: scale(16),
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: moderateScale(15),
   },
   summaryStoreCard: {
     backgroundColor: "white",
-    padding: 20,
-    borderRadius: 24,
+    padding: scale(20),
+    borderRadius: scale(24),
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 20,
+    marginBottom: scale(20),
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
@@ -996,22 +1215,31 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   summaryIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: scale(52),
+    height: scale(52),
+    borderRadius: scale(26),
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
   },
-  summaryStoreName: { fontSize: 13, fontWeight: "bold", color: "#1E293B" },
-  summaryDetails: { fontSize: 11, color: "#64748B", marginTop: 2 },
+  summaryStoreName: {
+    fontSize: moderateScale(13),
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+  summaryDetails: {
+    fontSize: moderateScale(11),
+    color: "#64748B",
+    marginTop: scale(2),
+  },
   itemListContainer: {
     backgroundColor: "white",
-    borderRadius: 24,
+    borderRadius: scale(24),
     borderWidth: 1,
     borderColor: "#E2E8F0",
     overflow: "hidden",
-    marginBottom: 20,
+    paddingBottom: scale(10),
+    marginBottom: scale(20),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1020,59 +1248,77 @@ const styles = StyleSheet.create({
   },
   itemListHeader: {
     backgroundColor: "#F8FAFC",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: scale(20),
+    paddingVertical: scale(16),
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
   },
   itemListTitle: {
-    fontSize: 12,
+    fontSize: moderateScale(12),
     fontWeight: "bold",
     color: "#334155",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  itemRow: { flexDirection: "row", alignItems: "center", padding: 8 },
+  itemRow: { flexDirection: "row", alignItems: "center", padding: scale(8) },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   itemIdxBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: scale(34),
+    height: scale(34),
+    borderRadius: scale(10),
     backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: scale(16),
   },
-  itemIdxText: { fontSize: 13, fontWeight: "bold", color: "#64748B" },
-  itemRowName: { fontSize: 12, fontWeight: "600", color: "#1E293B" },
-  itemRowBrand: { fontSize: 10, color: "#94A3B8", marginTop: 2 },
+  itemIdxText: {
+    fontSize: moderateScale(13),
+    fontWeight: "bold",
+    color: "#64748B",
+  },
+  itemRowName: {
+    fontSize: moderateScale(12),
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  itemRowBrand: {
+    fontSize: moderateScale(10),
+    color: "#94A3B8",
+    marginTop: scale(2),
+  },
   bottomNav: {
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 12 : 24,
-    marginBottom: 40,
+    paddingHorizontal: scale(20),
+    paddingTop: scale(12),
     flexDirection: "row",
-    gap: 12,
+    gap: scale(12),
   },
   prevBtn: {
     flex: 1,
     backgroundColor: "#F3F4F6",
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: scale(14),
+    borderRadius: scale(16),
     alignItems: "center",
     justifyContent: "center",
   },
-  prevBtnText: { color: "#4B5563", fontWeight: "700", fontSize: 14 },
+  prevBtnText: {
+    color: "#4B5563",
+    fontWeight: "700",
+    fontSize: moderateScale(14),
+  },
   nextBtn: {
     flex: 1,
     backgroundColor: "#1A3F75",
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: scale(14),
+    borderRadius: scale(16),
     alignItems: "center",
     justifyContent: "center",
   },
-  nextBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
+  nextBtnText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: moderateScale(14),
+  },
 });

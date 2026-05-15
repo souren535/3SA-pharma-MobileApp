@@ -21,6 +21,9 @@ import { useRouter } from "expo-router";
 import { StatusModal } from "../../components/ui/status-modal";
 import { StatusBar } from "expo-status-bar";
 
+import { scale, moderateScale, verticalScale } from "../../utils/scale";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 const { width } = Dimensions.get("window");
 
 export default function LoginScreen() {
@@ -85,9 +88,11 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
-      <StatusBar style="dark" />
+    <View style={{ flex: 1, backgroundColor: "white", paddingTop: insets.top, paddingBottom: insets.bottom }}>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
       <View style={{ flex: 1 }}>
         {/* Fixed Background Bottom View */}
         <View className="absolute bottom-0 left-0 w-full h-40" pointerEvents="none">
@@ -111,21 +116,21 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Top Section - Logo & Branding */}
-          <View style={{ alignItems: "center", paddingTop: isKeyboardVisible ? 0 : 10 }}>
+          <View style={{ alignItems: "center", paddingTop: isKeyboardVisible ? 0 : scale(10) }}>
             <Image
               source={require("../../assets/images/favicon.png")}
               style={{ 
-                width: isKeyboardVisible ? 100 : 200, 
-                height: isKeyboardVisible ? 100 : 200 
+                width: isKeyboardVisible ? scale(100) : scale(200), 
+                height: isKeyboardVisible ? scale(100) : scale(200) 
               }}
               contentFit="contain"
             />
             <Text
               style={{
                 fontFamily: "Lobster",
-                fontSize: isKeyboardVisible ? 50 : 100,
+                fontSize: isKeyboardVisible ? moderateScale(50) : moderateScale(100),
                 color: "#1A3F75",
-                marginTop: isKeyboardVisible ? -15 : -35,
+                marginTop: isKeyboardVisible ? verticalScale(-15) : verticalScale(-35),
               }}
             >
               Delivery
@@ -138,16 +143,16 @@ export default function LoginScreen() {
               className="tracking-wider"
               style={{
                 fontFamily: "Lobster",
-                fontSize: 25,
+                fontSize: moderateScale(25),
               }}
             >
               Welcome Back !
             </Text>
             <Text
               style={{
-                fontSize: 14,
+                fontSize: moderateScale(14),
                 color: "#6b7280",
-                marginTop: 4,
+                marginTop: scale(4),
               }}
             >
               Login in to Existing Account
@@ -155,7 +160,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Form Section */}
-          <View style={{ paddingHorizontal: 32, marginTop: 32 }}>
+          <View style={{ paddingHorizontal: scale(32), marginTop: scale(32) }}>
             {/* Email Field */}
             <View
               style={{
@@ -163,8 +168,8 @@ export default function LoginScreen() {
                 alignItems: "center",
                 borderBottomWidth: 1,
                 // borderBottomColor: "#d1d5db",
-                paddingVertical: 12,
-                marginBottom: 20,
+                paddingVertical: scale(12),
+                marginBottom: scale(20),
               }}
             >
               <Ionicons
@@ -194,8 +199,8 @@ export default function LoginScreen() {
                 alignItems: "center",
                 borderBottomWidth: 1,
                 // borderBottomColor: "#d1d5db",
-                paddingVertical: 12,
-                marginBottom: 8,
+                paddingVertical: scale(12),
+                marginBottom: scale(8),
               }}
             >
               <Ionicons
@@ -212,7 +217,7 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 style={{
                   flex: 1,
-                  fontSize: 16,
+                  fontSize: moderateScale(16),
                   color: "#111827",
                 }}
               />
@@ -230,7 +235,7 @@ export default function LoginScreen() {
               <Text
                 style={{
                   // color: "#1e40af",
-                  fontSize: 13,
+                  fontSize: moderateScale(13),
                   fontWeight: "600",
                 }}
               >
@@ -266,6 +271,6 @@ export default function LoginScreen() {
         message={modalConfig.message}
         onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
       />
-    </SafeAreaView>
+    </View>
   );
 }
