@@ -203,7 +203,22 @@ export default function OrdersScreen() {
                 </View>
                 <Text className="text-xs text-gray-600 mt-0.5">Billing Date : {new Date(item.billing_date || item.created_at).toLocaleDateString()}</Text>
                 <View className="flex-row justify-between items-center mt-1">
-                  <Text className="text-xs font-semibold text-[#3AA58E]">Status : {item.status}</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-semibold text-gray-500">Status : </Text>
+                    <Text 
+                      className="text-xs font-bold" 
+                      style={{ 
+                        color: item.status?.toLowerCase() === 'pending' ? '#F59E0B' :
+                               item.status?.toLowerCase() === 'accepted' ? '#3B82F6' :
+                               item.status?.toLowerCase() === 'delivered' ? '#10B981' :
+                               item.status?.toLowerCase() === 'completed' ? '#10B981' :
+                               item.status?.toLowerCase() === 'cancelled' ? '#EF4444' :
+                               item.status?.toLowerCase() === 'rejected' ? '#EF4444' : '#3AA58E'
+                      }}
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
                   <Text className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md" numberOfLines={1}>
                     {item.shop?.shop_name || 'Unknown Store'}
                   </Text>

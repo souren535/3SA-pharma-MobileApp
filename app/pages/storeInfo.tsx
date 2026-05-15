@@ -136,7 +136,22 @@ export default function StoreInfoScreen() {
                 <Text className={`text-xs font-bold text-[#FF4A4A]`}>Rs. {item.total_amount}</Text>
               </View>
               <Text className="text-xs text-gray-500 mt-0.5">Billing Date : {new Date(item.billing_date || item.created_at).toLocaleDateString()}</Text>
-              <Text className="text-xs text-gray-500 mt-0.5">Status : {item.status}</Text>
+              <View className="flex-row items-center mt-0.5">
+                <Text className="text-xs text-gray-500">Status : </Text>
+                <Text 
+                  className="text-xs font-bold"
+                  style={{ 
+                    color: item.status?.toLowerCase() === 'pending' ? '#F59E0B' :
+                           item.status?.toLowerCase() === 'accepted' ? '#3B82F6' :
+                           item.status?.toLowerCase() === 'delivered' ? '#10B981' :
+                           item.status?.toLowerCase() === 'completed' ? '#10B981' :
+                           item.status?.toLowerCase() === 'cancelled' ? '#EF4444' :
+                           item.status?.toLowerCase() === 'rejected' ? '#EF4444' : '#10B981'
+                  }}
+                >
+                  {item.status}
+                </Text>
+              </View>
             </View>
             <Ionicons name="caret-forward" size={14} color="#A0AEC0" style={{ marginLeft: 8 }} />
           </TouchableOpacity>

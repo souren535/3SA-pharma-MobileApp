@@ -425,7 +425,7 @@ export default function CreateStoreScreen() {
       formData.append('longitude', String(location?.longitude ?? 0));
 
       formData.append('license_no', String(licenseNo || '').trim());
-      formData.append('fassai_license', String(fssaiLicense || '').trim());
+      formData.append('fssai_license', String(fssaiLicense || '').trim());
       formData.append('gst_number', String(gstNumber || '').trim());
       formData.append('pan_number', String(panNumber || '').trim());
       formData.append('route_id', String(routeId || '').trim());
@@ -439,12 +439,22 @@ export default function CreateStoreScreen() {
       await createShop(formData);
       showPopup('Success', 'Store created successfully!');
     } catch (error: any) {
-      // Handle plain Error objects (from fixed service) and axios-style errors
-      const msg =
-        error?.message ||
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        'Failed to create store. Please try again.';
+      console.error('Full Submission Error:', error);
+      let msg = 'Failed to create store. Please try again.';
+      
+      if (error?.response?.data) {
+        const data = error.response.data;
+        // Handle Laravel validation errors
+        if (data.errors) {
+          const firstError = Object.values(data.errors)[0];
+          msg = Array.isArray(firstError) ? firstError[0] : String(firstError);
+        } else {
+          msg = data.message || data.error || msg;
+        }
+      } else if (error?.message) {
+        msg = error.message;
+      }
+      
       showPopup('Error', msg);
     } finally {
       setIsSubmitting(false);
@@ -750,6 +760,7 @@ export default function CreateStoreScreen() {
           backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F3F4F6',
           paddingHorizontal: 20, paddingTop: 12,
           paddingBottom: Platform.OS === 'ios' ? insets.bottom + 12 : insets.bottom + 24,
+          marginBottom: 40, // Increased gap for better visibility
           flexDirection: 'row', gap: 12,
         }}>
           {currentStep > 0 && (

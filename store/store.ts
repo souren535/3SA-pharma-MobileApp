@@ -109,7 +109,7 @@ export interface Shop {
   license_no: string | null;
   latitude: string;
   longitude: string;
-  fassai_license: string | null;
+  fssai_license: string | null;
   gst_number: string | null;
   pan_number: string | null;
   created_at: string;

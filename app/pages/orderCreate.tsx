@@ -1,24 +1,31 @@
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  TextInput,
-  Image,
-  Modal,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native";
-import { Ionicons, Feather, MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useShopStore, useOrderStore, useProductStore, IMAGE_BASE_URL } from "../../store/store";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusModal } from "../../components/ui/status-modal";
+import {
+  IMAGE_BASE_URL,
+  useOrderStore,
+  useProductStore,
+  useShopStore,
+} from "../../store/store";
+
+const STEPS = ["Store", "Products", "Review"];
 
 interface CartItem {
   id: number;
@@ -42,20 +49,51 @@ export default function OrderCreateScreen() {
   // Zustand stores
   const { shops, fetchShops } = useShopStore();
   const { createOrder, isLoading: isOrderSubmitting } = useOrderStore();
-  const { products, fetchProducts, categories, fetchCategories, isLoading: productsLoading } = useProductStore();
+  const {
+    products,
+    fetchProducts,
+    categories,
+    fetchCategories,
+    isLoading: productsLoading,
+  } = useProductStore();
 
-  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(storeIdParam ? parseInt(storeIdParam) : null);
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(
+    storeIdParam ? parseInt(storeIdParam) : null,
+  );
   const [selectedStoreName, setSelectedStoreName] = useState(preSelectedStore);
-  
+
+  const [currentStep, setCurrentStep] = useState(0);
   const [showStoreDropdown, setShowStoreDropdown] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false);
   const [modalSearch, setModalSearch] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null,
+  );
   const [note, setNote] = useState("");
   const [deliveryDate, setDeliveryDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [modalConfig, setModalConfig] = useState({ visible: false, type: 'info' as 'success'|'error'|'info', title: '', message: '' });
+  const [modalConfig, setModalConfig] = useState({
+    visible: false,
+    type: "info" as "success" | "error" | "info",
+    title: "",
+    message: "",
+  });
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true),
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     fetchShops();
@@ -63,14 +101,22 @@ export default function OrderCreateScreen() {
     fetchCategories();
   }, []);
 
-  const selectedStoreData = shops.find((s) => s.id === selectedStoreId);
+  const selectedStoreData = useMemo(() => {
+    const id =
+      selectedStoreId || (storeIdParam ? parseInt(storeIdParam) : null);
+    return shops.find((s) => s.id === id);
+  }, [shops, selectedStoreId, storeIdParam]);
 
   const filteredModalProducts = useMemo(() => {
     return products.filter((p) => {
       const brandName = p.brand?.name || "";
-      const matchesSearch = p.product_name.toLowerCase().includes(modalSearch.toLowerCase()) || 
-                           brandName.toLowerCase().includes(modalSearch.toLowerCase());
-      const matchesCategory = selectedCategoryId ? (p.brand?.category_id === selectedCategoryId || p.category_id === selectedCategoryId) : true;
+      const matchesSearch =
+        p.product_name.toLowerCase().includes(modalSearch.toLowerCase()) ||
+        brandName.toLowerCase().includes(modalSearch.toLowerCase());
+      const matchesCategory = selectedCategoryId
+        ? p.brand?.category_id === selectedCategoryId ||
+          p.category_id === selectedCategoryId
+        : true;
       return matchesSearch && matchesCategory;
     });
   }, [products, modalSearch, selectedCategoryId]);
@@ -80,162 +126,200 @@ export default function OrderCreateScreen() {
     if (existing) {
       setCart(cart.filter((c) => c.id !== product.id));
     } else {
-      setCart([...cart, { id: product.id, name: product.product_name, brand: product.brand?.name || "", qty: 1 }]);
+      setCart([
+        ...cart,
+        {
+          id: product.id,
+          name: product.product_name,
+          brand: product.brand?.name || "",
+          qty: 1,
+        },
+      ]);
     }
   };
 
   const updateQty = (id: number, delta: number) => {
     setCart(
-      cart.map((c) =>
-        c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c,
-      ),
+      cart
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = item.qty + delta;
+            return newQty > 0 ? { ...item, qty: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[],
     );
   };
 
   const handlePlaceOrder = async () => {
     if (!selectedStoreId && !storeIdParam) {
-      setModalConfig({ visible: true, type: 'error', title: 'Error', message: 'Please select a store' });
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Error",
+        message: "Please select a store",
+      });
       return;
     }
     if (cart.length === 0) {
-      setModalConfig({ visible: true, type: 'error', title: 'Error', message: 'Please add at least one product' });
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Error",
+        message: "Please add at least one product",
+      });
       return;
     }
 
     const payload = {
       shop_id: selectedStoreId || parseInt(storeIdParam),
-      items: cart.map(item => ({
+      items: cart.map((item) => ({
         product_id: item.id,
-        quantity: item.qty
+        quantity: item.qty,
       })),
-      notes: note
+      notes: note,
     };
 
     try {
       await createOrder(payload);
-      setModalConfig({ visible: true, type: 'success', title: 'Success', message: 'Order placed successfully!' });
+      setModalConfig({
+        visible: true,
+        type: "success",
+        title: "Success",
+        message: "Order placed successfully!",
+      });
       setTimeout(() => router.back(), 1500);
     } catch (error) {
-      setModalConfig({ visible: true, type: 'error', title: 'Failed', message: 'Failed to place order. Please try again.' });
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Failed",
+        message: "Failed to place order. Please try again.",
+      });
     }
   };
 
   const getStoreImageUrl = (item: any) => {
-    if (!item) return 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
+    if (!item)
+      return "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop";
     if (item.images && item.images.length > 0) {
       const url = item.images[0].image_url;
-      return url.startsWith('http') ? url : `${IMAGE_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+      return url.startsWith("http")
+        ? url
+        : `${IMAGE_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
     }
-    return 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop';
+    return "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=200&auto=format&fit=crop";
+  };
+
+  const handleNext = () => {
+    if (currentStep === 0) {
+      if (!selectedStoreId && !storeIdParam) {
+        setModalConfig({
+          visible: true,
+          type: "error",
+          title: "Required",
+          message: "Please select a store first.",
+        });
+        return;
+      }
+      setCurrentStep(1);
+    } else if (currentStep === 1) {
+      if (cart.length === 0) {
+        setModalConfig({
+          visible: true,
+          type: "error",
+          title: "Required",
+          message: "Please add at least one product.",
+        });
+        return;
+      }
+      setCurrentStep(2);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
   };
 
   const renderStoreProfileCard = () => {
     const name = fromStore ? preSelectedStore : selectedStoreName;
     const cat = fromStore ? storeCategory : selectedStoreData?.category || "";
     const phone = fromStore ? storeContact : selectedStoreData?.contact || "";
-    const addr = fromStore ? "Address from parameters" : selectedStoreData?.address || "";
+    const addr = fromStore
+      ? "Address from parameters"
+      : selectedStoreData?.address || "";
     const img = fromStore ? storeImage : getStoreImageUrl(selectedStoreData);
 
     if (!name) return null;
 
     return (
-      <View className="bg-white mx-4 mt-4 rounded-2xl shadow-sm p-4">
-        <View className="flex-row">
-          <Image
-            source={{ uri: img }}
-            className="w-[72px] h-[72px] rounded-xl bg-gray-200"
-            resizeMode="cover"
-          />
-          <View className="flex-1 ml-4 justify-center">
-            <Text className="text-[16px] font-bold text-gray-800">{name}</Text>
-            <View className="flex-row items-center mt-3">
-              <MaterialIcons name="category" size={15} color="#9CA3AF" />
-              <Text className="text-[12px] text-gray-500 ml-2">{cat}</Text>
-            </View>
-            <View className="flex-row items-center mt-2">
-              <MaterialIcons name="phone" size={15} color="#9CA3AF" />
-              <Text className="text-[12px] text-gray-500 ml-2">{phone}</Text>
+      <View style={styles.storeCard}>
+        <View style={styles.rowCenter}>
+          <Image source={{ uri: img }} style={styles.storeImg} />
+          <View style={styles.flex1}>
+            <Text style={styles.storeNameText} numberOfLines={1}>
+              {name}
+            </Text>
+            <View style={styles.rowCenter}>
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{cat}</Text>
+              </View>
+              <Text style={styles.phoneText}>{phone}</Text>
             </View>
           </View>
         </View>
-
-        <View className="h-[1px] bg-gray-100 my-3" />
-        <View className="flex-row items-start">
-          <MaterialIcons
-            name="location-on"
-            size={15}
-            color="#9CA3AF"
-            style={{ marginTop: 2 }}
-          />
-          <Text className="text-[12px] text-gray-500 ml-2 flex-1" numberOfLines={2}>{selectedStoreData?.address || addr}</Text>
+        <View style={styles.divider} />
+        <View style={styles.rowCenter}>
+          <MaterialIcons name="location-on" size={13} color="#9CA3AF" />
+          <Text style={styles.addressText} numberOfLines={1}>
+            {selectedStoreData?.address || addr}
+          </Text>
         </View>
       </View>
     );
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={["#1A3F75", "#2D5A9E"]}
-        style={{
-          paddingTop: Platform.OS === "ios" ? insets.top : insets.top + 20,
-          paddingBottom: 20,
-          paddingHorizontal: 20,
-        }}
-      >
-        <View className="flex-row justify-between items-center">
-          <View className="flex-row items-center flex-1">
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color="white" />
-            </TouchableOpacity>
-            <View className="ml-4">
-              <Text className="text-white text-lg font-bold">Create Order</Text>
-              <Text className="text-white/70 text-xs mt-0.5">
-                {fromStore ? `For ${preSelectedStore}` : "New Order"}
+  const renderStep1 = () => (
+    <View style={styles.flex1}>
+      {!fromStore && (
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Select Store *</Text>
+          <TouchableOpacity
+            style={styles.dropdownTrigger}
+            onPress={() => setShowStoreDropdown(!showStoreDropdown)}
+          >
+            <View style={styles.rowCenter}>
+              <View style={styles.iconCircle}>
+                <MaterialIcons name="store" size={20} color="#4C73B6" />
+              </View>
+              <Text
+                style={[
+                  styles.dropdownValue,
+                  !selectedStoreName && { color: "#9CA3AF" },
+                ]}
+              >
+                {selectedStoreName || "Choose a store..."}
               </Text>
             </View>
-          </View>
-        </View>
-      </LinearGradient>
-
-      <View className="z-10 pb-1">
-        {/* Store Selector */}
-        {!fromStore && (
-          <View className="mx-4 mt-4">
-            <Text className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
-              Select Store
-            </Text>
-            <TouchableOpacity
-              className="bg-white rounded-xl p-4 shadow-sm flex-row items-center justify-between"
-              onPress={() => setShowStoreDropdown(!showStoreDropdown)}
-            >
-              <View className="flex-row items-center flex-1">
-                <View className="w-10 h-10 rounded-full bg-[#EEF2FF] items-center justify-center">
-                  <MaterialIcons name="store" size={20} color="#4C73B6" />
-                </View>
-                <Text
-                  className={`ml-3 text-[14px] font-semibold ${selectedStoreName ? "text-gray-800" : "text-gray-400"}`}
-                >
-                  {selectedStoreName || "Choose a store..."}
-                </Text>
-              </View>
-              <Ionicons
-                name={showStoreDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#9CA3AF"
-              />
-            </TouchableOpacity>
-            {showStoreDropdown && (
-              <ScrollView
-                className="bg-white rounded-xl shadow-md mt-1"
-                style={{ maxHeight: 200 }}
-                nestedScrollEnabled
-              >
+            <Ionicons
+              name={showStoreDropdown ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#9CA3AF"
+            />
+          </TouchableOpacity>
+          {showStoreDropdown && (
+            <View style={styles.dropdownMenu}>
+              <ScrollView style={{ maxHeight: 250 }}>
                 {shops.map((store) => (
                   <TouchableOpacity
                     key={store.id}
-                    className={`flex-row items-center px-4 py-3 border-b border-gray-50 ${selectedStoreId === store.id ? "bg-[#EEF2FF]" : ""}`}
+                    style={[
+                      styles.dropdownItem,
+                      selectedStoreId === store.id && {
+                        backgroundColor: "#EFF6FF",
+                      },
+                    ]}
                     onPress={() => {
                       setSelectedStoreId(store.id);
                       setSelectedStoreName(store.shop_name);
@@ -244,16 +328,11 @@ export default function OrderCreateScreen() {
                   >
                     <Image
                       source={{ uri: getStoreImageUrl(store) }}
-                      className="w-9 h-9 rounded-full bg-gray-200"
-                      resizeMode="cover"
+                      style={styles.smallAvatar}
                     />
-                    <View className="ml-3 flex-1">
-                      <Text className="text-[13px] font-semibold text-gray-800">
-                        {store.shop_name}
-                      </Text>
-                      <Text className="text-[11px] text-gray-400">
-                        {store.category}
-                      </Text>
+                    <View style={styles.flex1}>
+                      <Text style={styles.itemTitle}>{store.shop_name}</Text>
+                      <Text style={styles.itemSubtitle}>{store.category}</Text>
                     </View>
                     {selectedStoreId === store.id && (
                       <Ionicons
@@ -265,317 +344,746 @@ export default function OrderCreateScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            )}
-          </View>
-        )}
-
-        {/* Store Profile Card */}
-        {renderStoreProfileCard()}
-
-        {/* Note + Delivery Date Row */}
-        {(selectedStoreName || fromStore) && (
-          <View className="flex-row mx-4 mt-4 gap-3">
-            <View className="flex-1 bg-white rounded-xl shadow-sm p-3">
-              <Text className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
-                Note
-              </Text>
-              <TextInput
-                placeholder="Add a note..."
-                placeholderTextColor="#9CA3AF"
-                className="text-[13px] text-gray-700"
-                value={note}
-                onChangeText={setNote}
-                multiline
-                numberOfLines={2}
-                style={{ minHeight: 40, textAlignVertical: "top" }}
-              />
             </View>
-            <View className="flex-1 bg-white rounded-xl shadow-sm p-3">
-              <Text className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
-                Delivery Date
-              </Text>
-              <TouchableOpacity 
-                className="flex-row items-center mt-1"
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Ionicons name="calendar-outline" size={18} color="#4C73B6" />
-                <Text className="text-[13px] text-gray-700 font-semibold ml-2">
-                  {deliveryDate.toLocaleDateString()}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={deliveryDate}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) setDeliveryDate(selectedDate);
-            }}
-          />
-        )}
-
-        {/* Select Product Button */}
-        {(selectedStoreName || fromStore) && (
-          <View className="mx-4 mt-5">
-            <Text className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
-              Select Products
-            </Text>
-            <TouchableOpacity
-              className="bg-white rounded-xl p-4 flex-row items-center justify-between shadow-sm border border-gray-100"
-              onPress={() => setShowProductModal(true)}
-            >
-              <View className="flex-row items-center flex-1">
-                <Text className="text-[#9CA3AF] text-[14px] ml-3">
-                  Search for product...
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: cart.length > 0 ? 180 : 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Selected Product List */}
-        {cart.length > 0 && (
-          <View className="mx-4 mt-5">
-            <Text className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">
-              Product List ({cart.length})
-            </Text>
-            {cart.map((item) => (
-              <View
-                key={item.id}
-                className="bg-white rounded-xl shadow-sm p-3 mb-3 flex-row items-center"
-              >
-                <View className="flex-1 ml-1">
-                  <Text
-                    className="text-[14px] font-bold text-gray-800"
-                    numberOfLines={1}
-                  >
-                    {item.name}
-                  </Text>
-                  <Text className="text-[12px] text-gray-500 mt-1">
-                    {item.brand}
-                  </Text>
-                </View>
-                <View className="flex-row items-center bg-[#EEF2FF] rounded-xl px-1">
-                  <TouchableOpacity
-                    className="w-7 h-7 items-center justify-center"
-                    onPress={() => updateQty(item.id, -1)}
-                  >
-                    <Feather name="minus" size={14} color="#4C73B6" />
-                  </TouchableOpacity>
-                  <Text className="text-[14px] font-bold text-[#1A3F75] mx-2">
-                    {item.qty}
-                  </Text>
-                  <TouchableOpacity
-                    className="w-7 h-7 items-center justify-center"
-                    onPress={() => updateQty(item.id, 1)}
-                  >
-                    <Feather name="plus" size={14} color="#4C73B6" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Bottom Submit Bar */}
-      {cart.length > 0 && (selectedStoreName || fromStore) && (
-        <View
-          className="absolute bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-100"
-          style={{ paddingBottom: Platform.OS === "ios" ? insets.bottom : 16 }}
-        >
-          <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
-            <View>
-              <Text className="text-[11px] text-gray-400 font-semibold">
-                SELECTED ITEMS
-              </Text>
-              <Text className="text-[22px] font-extrabold text-[#1A3F75]">
-                {cart.length}
-              </Text>
-            </View>
-            <TouchableOpacity 
-              className={`bg-[#1A3F75] px-8 py-4 rounded-2xl shadow-md ${isOrderSubmitting ? 'opacity-70' : ''}`}
-              disabled={isOrderSubmitting}
-              onPress={handlePlaceOrder}
-            >
-              {isOrderSubmitting ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text className="text-white text-[14px] font-bold">
-                  Place Order
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
       )}
 
-      {/* Product Selection Modal */}
-      <Modal visible={showProductModal} animationType="slide" transparent>
-        <View className="flex-1 bg-black/40 justify-end">
-          <View
-            className="bg-white rounded-t-3xl"
-            style={{
-              maxHeight: Dimensions.get("window").height * 0.85,
-              paddingBottom: Platform.OS === "ios" ? insets.bottom : 16,
-            }}
+      {(selectedStoreId || storeIdParam) && renderStoreProfileCard()}
+
+      <View style={styles.rowGap}>
+        <View style={styles.flex1}>
+          <Text style={styles.label}>Delivery Date</Text>
+          <TouchableOpacity
+            style={styles.datePickerTrigger}
+            onPress={() => setShowDatePicker(true)}
           >
-            {/* Modal Header */}
-            <View className="flex-row items-center justify-between px-5 pt-5 pb-3">
-              <Text className="text-lg font-bold text-gray-800">
-                Select Products
-              </Text>
-              <TouchableOpacity onPress={() => setShowProductModal(false)}>
-                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Modal Search */}
-            <View className="mx-5 mb-3 flex-row gap-2">
-              <View className="flex-1 bg-[#F1F5F9] rounded-xl flex-row items-center px-4 py-2.5">
-                <Ionicons name="search" size={18} color="#9CA3AF" />
-                <TextInput
-                  placeholder="Search by name or brand..."
-                  placeholderTextColor="#9CA3AF"
-                  className="flex-1 ml-3 text-[13px] text-gray-800"
-                  value={modalSearch}
-                  onChangeText={setModalSearch}
-                />
-              </View>
-            </View>
+            <Ionicons name="calendar-outline" size={20} color="#4C73B6" />
+            <Text style={styles.dateText}>
+              {deliveryDate.toLocaleDateString()}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-            {/* Categories Section */}
-            <View className="mb-4">
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
-                contentContainerStyle={{ paddingHorizontal: 20 }}
-              >
-                <TouchableOpacity
-                  className={`px-4 py-2 rounded-full mr-2 ${selectedCategoryId === null ? 'bg-[#1A3F75]' : 'bg-gray-100'}`}
-                  onPress={() => setSelectedCategoryId(null)}
-                >
-                  <Text className={`text-[12px] font-bold ${selectedCategoryId === null ? 'text-white' : 'text-gray-600'}`}>All</Text>
-                </TouchableOpacity>
-                {categories.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.id}
-                    className={`px-4 py-2 rounded-full mr-2 ${selectedCategoryId === cat.id ? 'bg-[#1A3F75]' : 'bg-gray-100'}`}
-                    onPress={() => setSelectedCategoryId(cat.id)}
-                  >
-                    <Text className={`text-[12px] font-bold ${selectedCategoryId === cat.id ? 'text-white' : 'text-gray-600'}`}>{cat.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+      <View style={styles.fieldContainer}>
+        <Text style={styles.label}>Notes</Text>
+        <View style={styles.textAreaContainer}>
+          <TextInput
+            placeholder="Add special instructions..."
+            multiline
+            numberOfLines={3}
+            style={styles.textArea}
+            textAlignVertical="top"
+            placeholderTextColor={"#ccc"}
+            value={note}
+            onChangeText={setNote}
+          />
+        </View>
+      </View>
 
-            {/* Product List */}
-            {productsLoading ? (
-               <ActivityIndicator size="large" color="#1A3F75" style={{ marginTop: 20 }} />
-            ) : (
-              <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
-                {filteredModalProducts.length > 0 ? (
-                  filteredModalProducts.map((product) => {
-                    const isSelected = cart.some((c) => c.id === product.id);
-                    const cartItem = cart.find((c) => c.id === product.id);
-                    return (
-                      <TouchableOpacity
-                        key={product.id}
-                        className={`flex-row items-center p-3 mb-2 rounded-xl border ${isSelected ? "bg-[#EEF2FF] border-[#4C73B6]" : "bg-white border-gray-100"}`}
-                        onPress={() => toggleProduct(product)}
-                      >
-                        {/* Checkbox */}
-                        <View
-                          className={`w-6 h-6 rounded-md border-2 items-center justify-center mr-3 ${isSelected ? "bg-[#4C73B6] border-[#4C73B6]" : "border-gray-300"}`}
-                        >
-                          {isSelected && (
-                            <Ionicons name="checkmark" size={16} color="white" />
-                          )}
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-[14px] font-bold text-gray-800">
-                            {product.product_name}
-                          </Text>
-                          <Text className="text-[12px] text-gray-500 mt-1">
-                            {product.brand?.name || "No Brand"}
-                          </Text>
-                        </View>
-                        {isSelected && cartItem && (
-                          <View className="flex-row items-center bg-white rounded-xl px-1 border border-[#4C73B6]">
-                            <TouchableOpacity
-                              className="w-7 h-7 items-center justify-center"
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                updateQty(product.id, -1);
-                              }}
-                            >
-                              <Feather name="minus" size={14} color="#4C73B6" />
-                            </TouchableOpacity>
-                            <Text className="text-[14px] font-bold text-[#1A3F75] mx-2">
-                              {cartItem.qty}
-                            </Text>
-                            <TouchableOpacity
-                              className="w-7 h-7 items-center justify-center"
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                updateQty(product.id, 1);
-                              }}
-                            >
-                              <Feather name="plus" size={14} color="#4C73B6" />
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
-                ) : (
-                  <View className="items-center py-10">
-                    <Text className="text-gray-400">No products found</Text>
-                  </View>
-                )}
-              </ScrollView>
-            )}
-            {/* Modal Done Button */}
-            <View className="px-5 pt-3">
-              <TouchableOpacity
-                className="bg-[#1A3F75] py-4 rounded-2xl items-center shadow-md"
-                onPress={() => setShowProductModal(false)}
-              >
-                <Text className="text-white text-[14px] font-bold">
-                  Done ({cart.length} selected)
-                </Text>
-              </TouchableOpacity>
-            </View>
+      {showDatePicker && (
+        <DateTimePicker
+          value={deliveryDate}
+          mode="date"
+          onChange={(e, date) => {
+            setShowDatePicker(false);
+            if (date) setDeliveryDate(date);
+          }}
+        />
+      )}
+    </View>
+  );
+
+  const renderStep2 = () => {
+    if (productsLoading) {
+      return (
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color="#1A3F75" />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.flex1}>
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color="#9CA3AF" />
+            <TextInput
+              placeholder="Search medicine or brand..."
+              // style={styles.searchInput}
+              value={modalSearch}
+              className=""
+              placeholderTextColor="#ccc"
+              onChangeText={setModalSearch}
+            />
           </View>
         </View>
-      </Modal>
 
-      <StatusModal 
-        visible={modalConfig.visible} 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryScroll}
+        >
+          <TouchableOpacity
+            style={[
+              styles.categoryTab,
+              selectedCategoryId === null && { backgroundColor: "#1A3F75" },
+            ]}
+            onPress={() => setSelectedCategoryId(null)}
+          >
+            <Text
+              style={[
+                styles.categoryTabText,
+                selectedCategoryId === null && { color: "white" },
+              ]}
+            >
+              All Items
+            </Text>
+          </TouchableOpacity>
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[
+                styles.categoryTab,
+                selectedCategoryId === cat.id && { backgroundColor: "#1A3F75" },
+              ]}
+              onPress={() => setSelectedCategoryId(cat.id)}
+            >
+              <Text
+                style={[
+                  styles.categoryTabText,
+                  selectedCategoryId === cat.id && { color: "white" },
+                ]}
+              >
+                {cat.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.flex1}>
+          {filteredModalProducts.length > 0 ? (
+            filteredModalProducts.map((product) => {
+              const cartItem = cart.find((c) => c.id === product.id);
+              const isSelected = !!cartItem;
+              return (
+                <View
+                  key={product.id}
+                  style={[
+                    styles.productCard,
+                    isSelected && styles.productCardSelected,
+                  ]}
+                >
+                  <View style={styles.flex1}>
+                    <Text style={styles.productName}>
+                      {product.product_name}
+                    </Text>
+                    <Text style={styles.productBrand}>
+                      {product.brand?.name || "No Brand"}
+                    </Text>
+                  </View>
+                  <View style={styles.qtyContainer}>
+                    {isSelected ? (
+                      <View style={styles.rowCenter}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => updateQty(product.id, -1)}
+                        >
+                          <Feather name="minus" size={16} color="#4C73B6" />
+                        </TouchableOpacity>
+                        <Text style={styles.qtyText}>
+                          {cartItem.qty < 10 ? `0${cartItem.qty}` : cartItem.qty}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => updateQty(product.id, 1)}
+                        >
+                          <Feather name="plus" size={16} color="#4C73B6" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.addBtn}
+                        onPress={() => toggleProduct(product)}
+                      >
+                        <Text style={styles.addBtnText}>ADD</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyBox}>
+              <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>
+                No products match your search
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderStep3 = () => (
+    <View style={styles.flex1}>
+      <Text style={styles.labelCaps}>Order Summary</Text>
+      <View style={styles.summaryStoreCard}>
+        <View style={styles.summaryIconBox}>
+          <MaterialIcons name="store" size={24} color="#1A3F75" />
+        </View>
+        <View style={styles.flex1}>
+          <Text style={styles.summaryStoreName}>{selectedStoreName}</Text>
+          <Text style={styles.summaryDetails}>
+            {deliveryDate.toLocaleDateString()} • {note || "No notes"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.itemListContainer, { flex: 1, marginBottom: 0 }]}>
+        <View style={styles.itemListHeader}>
+          <Text style={styles.itemListTitle}>Items List ({cart.length})</Text>
+        </View>
+        <ScrollView
+          style={{ maxHeight: Platform.OS === 'ios' ? 400 : 350 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {cart.map((item, idx) => (
+            <View
+              key={item.id}
+              style={[
+                styles.itemRow,
+                idx !== cart.length - 1 && styles.borderBottom,
+              ]}
+            >
+              <View style={styles.itemIdxBox}>
+                <Text style={styles.itemIdxText}>
+                  {String(idx + 1).padStart(2, "0")}
+                </Text>
+              </View>
+              <View style={styles.flex1}>
+                <Text style={styles.itemRowName}>{item.name}</Text>
+                <Text style={styles.itemRowBrand}>{item.brand}</Text>
+              </View>
+              <Text style={styles.itemRowQty}>
+                x {item.qty < 10 ? `0${item.qty}` : item.qty}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={["#1A3F75", "#2D5A9E"]} style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Create Order</Text>
+          <Text style={styles.headerStepText}>
+            Step {currentStep + 1} of {STEPS.length}
+          </Text>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {STEPS.map((step, index) => {
+            const isActive = index === currentStep;
+            const isCompleted = index < currentStep;
+            return (
+              <React.Fragment key={step}>
+                <View style={styles.stepItem}>
+                  <View
+                    style={[
+                      styles.stepCircle,
+                      isCompleted
+                        ? { backgroundColor: "#059669" }
+                        : isActive
+                          ? { backgroundColor: "white" }
+                          : { backgroundColor: "rgba(255,255,255,0.2)" },
+                    ]}
+                  >
+                    {isCompleted ? (
+                      <Ionicons name="checkmark" size={14} color="white" />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.stepNumber,
+                          isActive
+                            ? { color: "#1A3F75" }
+                            : { color: "rgba(255,255,255,0.6)" },
+                        ]}
+                      >
+                        {index + 1}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      isActive || isCompleted
+                        ? { color: "white" }
+                        : { color: "rgba(255,255,255,0.4)" },
+                    ]}
+                  >
+                    {step}
+                  </Text>
+                </View>
+                {index < STEPS.length - 1 && (
+                  <View style={styles.stepChevron}>
+                    <View
+                      style={{
+                        width: 32,
+                        height: 2,
+                        backgroundColor: "rgba(255,255,255,0.4)",
+                      }}
+                    />
+                  </View>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </ScrollView>
+      </LinearGradient>
+
+      <KeyboardAvoidingView
+        style={styles.flex1}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+      >
+        <ScrollView
+          style={styles.flex1}
+          contentContainerStyle={[
+            styles.scrollContent,
+            currentStep === 2 && { paddingBottom: 100 }
+          ]}
+          scrollEnabled={currentStep !== 2}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {currentStep === 0 && renderStep1()}
+          {currentStep === 1 && renderStep2()}
+          {currentStep === 2 && renderStep3()}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Bottom Navigation */}
+      {!isKeyboardVisible && (
+        <View style={styles.bottomNav}>
+          {currentStep > 0 && (
+            <TouchableOpacity style={styles.prevBtn} onPress={handlePrevious}>
+              <Text style={styles.prevBtnText}>Previous</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.nextBtn}
+            onPress={currentStep === 2 ? handlePlaceOrder : handleNext}
+            disabled={isOrderSubmitting}
+          >
+            {isOrderSubmitting ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.nextBtnText}>
+                {currentStep === 2 ? "Place Order" : "Next Step"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <StatusModal
+        visible={modalConfig.visible}
         onClose={() => setModalConfig({ ...modalConfig, visible: false })}
-        type={modalConfig.type} 
-        title={modalConfig.title} 
-        message={modalConfig.message} 
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F3F6F8",
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  flex1: { flex: 1 },
+  rowCenter: { flexDirection: "row", alignItems: "center" },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: Platform.OS === "ios" ? 60 : 50,
   },
+  headerTop: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  headerTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "bold",
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerStepText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  stepItem: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  stepCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumber: { fontSize: 12, fontWeight: "800" },
+  stepLabel: { fontSize: 13, fontWeight: "700", marginLeft: 8 },
+  stepChevron: { justifyContent: "center", marginRight: 12 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 160 },
+  label: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#64748B",
+    textTransform: "uppercase",
+    marginBottom: 10,
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  labelCaps: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#64748B",
+    textTransform: "uppercase",
+    marginBottom: 12,
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  fieldContainer: { marginBottom: 20, marginTop: 20 },
+  dropdownTrigger: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  dropdownValue: {
+    marginLeft: 12,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dropdownMenu: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    marginTop: 6,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  dropdownItem: {
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  smallAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+  },
+  itemTitle: { fontSize: 14, fontWeight: "600", color: "#1E293B" },
+  itemSubtitle: { fontSize: 12, color: "#94A3B8", marginTop: 2 },
+  storeCard: {
+    backgroundColor: "white",
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 8,
+  },
+  storeImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    marginRight: 16,
+  },
+  storeNameText: { fontSize: 17, fontWeight: "bold", color: "#1E293B" },
+  categoryBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  categoryText: {
+    fontSize: 10,
+    color: "#4C73B6",
+    fontWeight: "bold",
+    textTransform: "uppercase",
+  },
+  phoneText: { fontSize: 13, color: "#64748B", marginLeft: 12 },
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 14 },
+  addressText: {
+    fontSize: 12,
+    color: "#64748B",
+    marginLeft: 10,
+    flex: 1,
+    lineHeight: 16,
+  },
+  rowGap: { flexDirection: "row", gap: 12, marginTop: 4 },
+  datePickerTrigger: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  dateText: {
+    fontSize: 15,
+    color: "#1E293B",
+    fontWeight: "600",
+    marginLeft: 10,
+  },
+  textAreaContainer: {
+    backgroundColor: "#F1F5F9",
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  textArea: { fontSize: 14, color: "black", minHeight: 80, lineHeight: 18 },
+  centerBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 100,
+  },
+  loadingText: { color: "#94A3B8", marginTop: 16, fontSize: 15 },
+  searchContainer: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: "#1E293B" },
+  categoryScroll: { marginBottom: 20 },
+  categoryTab: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    marginRight: 10,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  categoryTabText: { fontSize: 13, fontWeight: "bold", color: "#64748B" },
+  productCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    marginBottom: 14,
+    borderRadius: 20,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  productCardSelected: { borderColor: "#4C73B6", backgroundColor: "#F0F7FF" },
+  productName: { fontSize: 15, fontWeight: "bold", color: "#1E293B" },
+  productBrand: { fontSize: 12, color: "#64748B", marginTop: 4 },
+  qtyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+  },
+  qtyBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyText: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#1A3F75",
+    marginHorizontal: 4,
+  },
+  addBtn: {
+    backgroundColor: "#1A3F75",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  addBtnText: { color: "white", fontSize: 13, fontWeight: "bold" },
+  emptyBox: {
+    alignItems: "center",
+    paddingVertical: 100,
+    backgroundColor: "white",
+    borderRadius: 24,
+    borderStyle: "dashed",
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+  },
+  emptyText: {
+    color: "#94A3B8",
+    marginTop: 16,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  summaryStoreCard: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  summaryIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryStoreName: { fontSize: 17, fontWeight: "bold", color: "#1E293B" },
+  summaryDetails: { fontSize: 13, color: "#64748B", marginTop: 4 },
+  itemListContainer: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    marginBottom: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  itemListHeader: {
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  itemListTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#334155",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  itemRow: { flexDirection: "row", alignItems: "center", padding: 20 },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  itemIdxBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  itemIdxText: { fontSize: 13, fontWeight: "bold", color: "#64748B" },
+  itemRowName: { fontSize: 15, fontWeight: "600", color: "#1E293B" },
+  itemRowBrand: { fontSize: 12, color: "#94A3B8", marginTop: 2 },
+  bottomNav: {
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 12 : 24,
+    marginBottom: 40,
+    flexDirection: "row",
+    gap: 12,
+  },
+  prevBtn: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prevBtnText: { color: "#4B5563", fontWeight: "700", fontSize: 14 },
+  nextBtn: {
+    flex: 1,
+    backgroundColor: "#1A3F75",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nextBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
 });
