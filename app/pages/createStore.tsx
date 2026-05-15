@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Platform,
-  Image, TextInput, Modal, KeyboardAvoidingView, ActivityIndicator,
+  Image, TextInput, Modal, KeyboardAvoidingView, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -117,9 +117,17 @@ export default function CreateStoreScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingGST, setIsValidatingGST] = useState(false);
+  const [gstStatus, setGstStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // ── Location ────────────────────────────────────────────────────────────────
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -182,11 +190,13 @@ export default function CreateStoreScreen() {
   const [popupTitle, setPopupTitle] = useState('');
   const [popupMessage, setPopupMessage] = useState('');
   const [popupIsSuccess, setPopupIsSuccess] = useState(false);
+  const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
 
-  const showPopup = (title: string, message: string) => {
+  const showPopup = (title: string, message: string, isSuccess?: boolean, shouldRedirect?: boolean) => {
     setPopupTitle(title);
     setPopupMessage(message);
-    setPopupIsSuccess(title === 'Success');
+    setPopupIsSuccess(isSuccess ?? title === 'Success');
+    setShouldRedirectOnClose(shouldRedirect ?? title === 'Success');
     setPopupVisible(true);
   };
 
@@ -255,7 +265,7 @@ export default function CreateStoreScreen() {
         selectionLimit: 5,
       });
       if (!result.canceled) {
-        // MUST process sequentially on Android to prevent expo-image-manipulator 
+        // MUST process sequentially on Android to prevent expo-image-manipulator
         // native module from crashing or returning corrupted URIs during concurrent execution
         const processedUris = [];
         for (const asset of result.assets) {
@@ -344,11 +354,24 @@ export default function CreateStoreScreen() {
   };
 
   const handleValidateGST = () => {
-    if (!gstNumber || gstNumber.length !== 15) { showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.'); return; }
+    if (!gstNumber || gstNumber.length !== 15) {
+      showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.');
+      setGstStatus('error');
+      return;
+    }
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!gstRegex.test(gstNumber)) { showPopup('Invalid GST', 'The GST number format is incorrect.'); return; }
+    if (!gstRegex.test(gstNumber)) {
+      showPopup('Invalid GST', 'The GST number format is incorrect.');
+      setGstStatus('error');
+      return;
+    }
     setIsValidatingGST(true);
-    setTimeout(() => { setIsValidatingGST(false); showPopup('GST Verified', 'GST number format is valid.'); }, 800);
+    setGstStatus('idle');
+    setTimeout(() => {
+      setIsValidatingGST(false);
+      setGstStatus('success');
+      showPopup('GST Verified', 'GST number format is valid.', true);
+    }, 800);
   };
 
   // ── Submit ───────────────────────────────────────────────────────────────────
@@ -363,7 +386,7 @@ export default function CreateStoreScreen() {
       for (let i = 0; i < storeImages.length; i++) {
         let uri = storeImages[i];
         if (!uri) continue;
-        
+
         // React Native fetch requires the URI to have a scheme (file:// or content://)
         if (Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('http')) {
           uri = `file://${uri}`;
@@ -520,17 +543,30 @@ export default function CreateStoreScreen() {
       />
       <InputField
         label="GST Number" value={gstNumber}
-        onChangeText={(t: string) => setGstNumber(t.toUpperCase())}
+        onChangeText={(t: string) => {
+          setGstNumber(t.toUpperCase());
+          setGstStatus('idle');
+        }}
         placeholder="Enter 15-digit GST number" maxLength={15} required autoCapitalize="characters"
         loading={isValidatingGST}
         rightElement={
-          <TouchableOpacity
-            style={{ backgroundColor: '#1A3F75', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 6 }}
-            onPress={handleValidateGST}
-            disabled={isValidatingGST}
-          >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>VALIDATE</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {gstStatus === 'success' && (
+              <Ionicons name="checkmark-circle" size={22} color="#10B981" style={{ marginRight: 8 }} />
+            )}
+            {gstStatus === 'error' && (
+              <Ionicons name="alert-circle" size={22} color="#EF4444" style={{ marginRight: 8 }} />
+            )}
+            {gstStatus !== 'success' && (
+              <TouchableOpacity
+                style={{ backgroundColor: '#1A3F75', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 6 }}
+                onPress={handleValidateGST}
+                disabled={isValidatingGST}
+              >
+                <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>VALIDATE</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         }
       />
       <InputField
@@ -689,24 +725,31 @@ export default function CreateStoreScreen() {
       </LinearGradient>
 
       {/* Form Body */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+      >
         <ScrollView
           style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
         >
           {currentStep === 0 && renderStep1()}
           {currentStep === 1 && renderStep2()}
           {currentStep === 2 && renderStep3()}
           {currentStep === 3 && renderStep4()}
         </ScrollView>
+      </KeyboardAvoidingView>
 
-        {/* Bottom Action Bar */}
+      {/* Bottom Action Bar */}
+      {!isKeyboardVisible && (
         <View style={{
           backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F3F4F6',
           paddingHorizontal: 20, paddingTop: 12,
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : Math.max(insets.bottom + 8, 16),
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 12 : insets.bottom + 24,
           flexDirection: 'row', gap: 12,
         }}>
           {currentStep > 0 && (
@@ -732,7 +775,7 @@ export default function CreateStoreScreen() {
             }
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      )}
 
       {/* ── Shop Type Picker ── */}
       <Modal visible={showShopTypePicker} animationType="slide" transparent>
@@ -749,7 +792,7 @@ export default function CreateStoreScreen() {
                 key={type}
                 style={{
                   flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                  padding: 16, borderRadius: 12, marginBottom: 12,
+                  padding: 16, borderRadius: 12, marginBottom: 20,
                   backgroundColor: shopType === type ? '#EFF6FF' : '#F9FAFB',
                 }}
                 onPress={() => { setShopType(type); setShowShopTypePicker(false); }}
@@ -795,7 +838,7 @@ export default function CreateStoreScreen() {
       {/* ── Area Picker ── */}
       <Modal visible={showAreaPicker} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30, maxHeight: '70%' }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 22 : 60, maxHeight: '95%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Area</Text>
               <TouchableOpacity onPress={() => setShowAreaPicker(false)}>
@@ -836,7 +879,7 @@ export default function CreateStoreScreen() {
       {/* ── Image Source Modal ── */}
       <Modal visible={showImageSourceModal} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }}>
+          <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? insets.bottom + 22 : 60 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 16 }}>Add Store Photo</Text>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16, marginBottom: 12 }}
@@ -895,7 +938,7 @@ export default function CreateStoreScreen() {
               style={{ width: '100%', paddingVertical: 14, borderRadius: 16, backgroundColor: '#1A3F75', alignItems: 'center' }}
               onPress={() => {
                 setPopupVisible(false);
-                if (popupIsSuccess) {
+                if (shouldRedirectOnClose) {
                   setTimeout(() => router.back(), 150);
                 }
               }}

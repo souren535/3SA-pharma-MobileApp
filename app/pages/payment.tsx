@@ -69,7 +69,7 @@ export default function PaymentScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 10, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <View className="flex-1 pt-2 pb-4">
         {/* Summary Section */}
         <View className="px-4 mb-6 mt-2">
           <View className="rounded-[24px] overflow-hidden shadow-md">
@@ -121,6 +121,7 @@ export default function PaymentScreen() {
 
         <Text className="px-5 mb-4 text-gray-800 font-bold text-[17px]">Recent Transactions</Text>
         
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {isLoading ? (
           <View className="py-12 items-center justify-center">
             <ActivityIndicator size="large" color="#1A3F75" />
@@ -172,7 +173,8 @@ export default function PaymentScreen() {
             </TouchableOpacity>
           ))
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }

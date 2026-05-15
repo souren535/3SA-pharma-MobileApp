@@ -110,9 +110,7 @@ export default function OrderDetailsScreen() {
                 {orderDetails?.items && orderDetails.items.length > 0 ? orderDetails.items.map((item: any, index: number) => (
                     <View key={index} className="flex-row justify-between items-center mb-4 pb-4 border-b border-gray-50">
                       <View className="flex-row items-center flex-1 pr-4">
-                        <View className="w-12 h-12 bg-[#F3F6F8] rounded-xl items-center justify-center mr-3">
-                          <Ionicons name="medical" size={20} color="#4C73B6" />
-                        </View>
+
                         <View className="flex-1">
                           <Text className="text-gray-800 font-semibold" numberOfLines={1}>{item.product?.product_name || `Product #${item.product_id}`}</Text>
                           <Text className="text-gray-500 text-xs mt-1">Qty: {item.quantity}</Text>

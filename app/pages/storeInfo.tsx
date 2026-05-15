@@ -112,8 +112,8 @@ export default function StoreInfoScreen() {
     return (
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {shopOrders.map((item) => (
-          <TouchableOpacity 
-            key={item.id} 
+          <TouchableOpacity
+            key={item.id}
             className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
             onPress={() => router.push({
               pathname: '/pages/orderDetails',
@@ -127,15 +127,14 @@ export default function StoreInfoScreen() {
               }
             })}
           >
-            <View className={`w-11 h-11 rounded-full items-center justify-center bg-[#FF7676]`}>
-              <Text className="text-white text-lg font-bold">O</Text>
+            <View className="w-11 h-11 rounded-xl items-center justify-center bg-[#F3F6F8]">
+              <Ionicons name="document-text" size={24} color="#4C73B6" />
             </View>
             <View className="flex-1 ml-3">
               <View className="flex-row justify-between items-start">
-                <Text className="text-[14px] font-bold text-gray-800">Order</Text>
+                <Text className="text-[14px] font-bold text-gray-800" numberOfLines={1}>{item.order_no}</Text>
                 <Text className={`text-xs font-bold text-[#FF4A4A]`}>Rs. {item.total_amount}</Text>
               </View>
-              <Text className="text-xs text-gray-500 mt-0.5">Order No : {item.order_no}</Text>
               <Text className="text-xs text-gray-500 mt-0.5">Billing Date : {new Date(item.billing_date || item.created_at).toLocaleDateString()}</Text>
               <Text className="text-xs text-gray-500 mt-0.5">Status : {item.status}</Text>
             </View>
@@ -225,8 +224,8 @@ export default function StoreInfoScreen() {
             filteredTransactions.map((item) => {
               const isCredit = item.type === 'Order';
               return (
-                <TouchableOpacity 
-                  key={item.id} 
+                <TouchableOpacity
+                  key={item.id}
                   className="bg-white mb-3 p-4 rounded-xl shadow-sm"
                   onPress={() => {
                     if (isCredit) {
@@ -256,7 +255,7 @@ export default function StoreInfoScreen() {
                         />
                       </View>
                       <View className="ml-3">
-                        <Text className="text-[14px] font-bold text-gray-800">{item.type}</Text>
+                        <Text className="text-[14px] font-bold text-gray-800">{item.reference_no || item.type}</Text>
                         <Text className="text-[11px] text-gray-400 mt-0.5">{new Date(item.date || item.created_at).toLocaleDateString()}</Text>
                       </View>
                     </View>
@@ -265,9 +264,9 @@ export default function StoreInfoScreen() {
                   <View className="flex-row justify-between items-center pt-2 border-t border-gray-100">
                     <Text className="text-xs text-gray-500 flex-1 mr-2" numberOfLines={1}>{item.description || item.payment_mode}</Text>
                     {isCredit ? (
-                      <Text className="text-xs text-gray-600 font-semibold">Bal: Rs. {item.balance}</Text>
+                      <Text className="text-xs text-gray-600 font-semibold">{item.status}</Text>
                     ) : (
-                      <Text className="text-xs text-gray-600 font-semibold">{item.reference_no}</Text>
+                      <Text className="text-xs text-gray-600 font-semibold">{item.status}</Text>
                     )}
                   </View>
                 </TouchableOpacity>
@@ -445,7 +444,7 @@ export default function StoreInfoScreen() {
       {/* Main FAB (Hidden on Info tab) */}
       {activeTab !== 'Info' && (
         <TouchableOpacity
-          className="absolute bottom-[125px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
+          className="absolute bottom-[100px] right-6 w-14 h-14 bg-[#1A3F75] rounded-2xl items-center justify-center shadow-lg elevation-5"
           onPress={() => {
             if (!isWorking) {
               setShowAttendanceGate(true);
@@ -605,7 +604,7 @@ export default function StoreInfoScreen() {
             {['All', 'Credit', 'Debit'].map((filter) => (
               <TouchableOpacity
                 key={filter}
-                className={`flex-row justify-between items-center p-4 rounded-xl mb-3 ${transactionFilter === filter ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
+                className={`flex-row justify-between items-center p-4 rounded-xl mb-8 ${transactionFilter === filter ? 'bg-[#EFF6FF]' : 'bg-gray-50'}`}
                 onPress={() => {
                   setTransactionFilter(filter as 'All' | 'Credit' | 'Debit');
                   setShowFilterPopup(false);

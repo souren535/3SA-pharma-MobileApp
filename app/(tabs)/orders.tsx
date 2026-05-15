@@ -191,17 +191,16 @@ export default function OrdersScreen() {
               })}
             >
               {/* Circle Icon */}
-              <View className="w-12 h-12 rounded-full items-center justify-center bg-[#FF7676]">
-                <Text className="text-white text-xl font-bold">O</Text>
+              <View className="w-12 h-12 rounded-xl items-center justify-center bg-[#F3F6F8]">
+                <Ionicons name="document-text" size={24} color="#4C73B6" />
               </View>
 
               {/* Content */}
               <View className="flex-1 ml-4">
                 <View className="flex-row justify-between items-start">
-                <Text className="text-[15px] font-bold text-gray-800">Order</Text>
+                  <Text className="text-sm font-bold text-gray-800" numberOfLines={1}>{item.order_no}</Text>
                   <Text className="text-xs font-bold text-[#FF4A4A]">Rs. {item.total_amount}</Text>
                 </View>
-                <Text className="text-xs text-gray-600 mt-1">Order No : {item.order_no}</Text>
                 <Text className="text-xs text-gray-600 mt-0.5">Billing Date : {new Date(item.billing_date || item.created_at).toLocaleDateString()}</Text>
                 <View className="flex-row justify-between items-center mt-1">
                   <Text className="text-xs font-semibold text-[#3AA58E]">Status : {item.status}</Text>

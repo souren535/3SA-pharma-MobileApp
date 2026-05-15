@@ -336,11 +336,7 @@ export default function HomeScreen() {
         translucent
         backgroundColor="transparent"
       />
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <View className="flex-1 pb-4">
         {/* ===== HEADER GRADIENT ===== */}
         <LinearGradient
           colors={["#19212C", "#598CD7"]}
@@ -475,7 +471,7 @@ export default function HomeScreen() {
         </LinearGradient>
 
         {/* ===== BODY CONTENT ===== */}
-        <View className="px-4 -mt-3">
+        <View className="px-4 -mt-3 flex-1">
           {/* Today's Performance Section */}
           <View className="flex-row justify-between items-center mb-3 mt-8">
             <Text className="text-[17px] font-bold text-[#1E293B]">
@@ -553,6 +549,8 @@ export default function HomeScreen() {
               Priority Actions
             </Text>
           </View>
+          
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
           {/* Assigned Route Card */}
           {routes.length > 0 && (
@@ -679,8 +677,9 @@ export default function HomeScreen() {
             </View>
             <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
           </TouchableOpacity>
+          </ScrollView>
         </View>
-      </ScrollView>
+      </View>
 
       {/* ===== CUSTOM POPUP MODAL ===== */}
       <Modal visible={popupVisible} animationType="fade" transparent>

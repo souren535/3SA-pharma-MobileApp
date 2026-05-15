@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, ActivityIndicator, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, ActivityIndicator, Modal, Alert, TextInput } from 'react-native';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -49,6 +49,8 @@ export default function StoresScreen() {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const { isWorking } = useAttendanceStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   const monthDates = useMemo(() => getDatesForMonth(selectedMonth, selectedYear), [selectedMonth, selectedYear]);
 
@@ -80,8 +82,9 @@ export default function StoresScreen() {
     //   const shopDate = shop.created_at.split('T')[0];
     //   return shopDate === selectedDate;
     // });
-    return shops;
-  }, [shops, selectedDate]);
+    if (!searchQuery) return shops;
+    return shops.filter(shop => shop.shop_name?.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [shops, selectedDate, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -95,14 +98,27 @@ export default function StoresScreen() {
             <TouchableOpacity onPress={() => router.back()} className='bg-white/60 p-1.5 rounded-full'>
               <Ionicons name="arrow-back" size={24} color="#1E293B" />
             </TouchableOpacity>
-            <View className="ml-4">
-              <Text className="text-[#1E293B] text-xl font-bold tracking-wider">Stores</Text>
-              <Text className="text-gray-700 text-md opacity-90 tracking-wider">Listed Store</Text>
-            </View>
+            {!showSearch ? (
+              <View className="ml-4 flex-1">
+                <Text className="text-[#1E293B] text-xl font-bold tracking-wider">Stores</Text>
+                <Text className="text-gray-700 text-md opacity-90 tracking-wider">Listed Store</Text>
+              </View>
+            ) : (
+              <TextInput
+                className="flex-1 ml-4 bg-white/80 rounded-xl px-3 py-1.5 text-gray-800"
+                placeholder="Search stores..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+              />
+            )}
           </View>
-          <View className="flex-row gap-3">
-            <TouchableOpacity className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm">
-              <Ionicons name="search" size={20} color="#1E293B" />
+          <View className="flex-row gap-3 ml-2">
+            <TouchableOpacity 
+              className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
+              onPress={() => setShowSearch(!showSearch)}
+            >
+              <Ionicons name={showSearch ? "close" : "search"} size={20} color="#1E293B" />
             </TouchableOpacity>
           </View>
         </View>
