@@ -548,7 +548,11 @@ export default function OrderCreateScreen() {
                             style={styles.qtyBtnSmall}
                             onPress={() => updateQty(product.id, -1)}
                           >
-                            <Feather name="minus" size={14} color="#4C73B6" />
+                            {cartItem.qty === 1 ? (
+                              <Feather name="trash-2" size={14} color="#EF4444" />
+                            ) : (
+                              <Feather name="minus" size={14} color="#4C73B6" />
+                            )}
                           </TouchableOpacity>
                           <Text style={styles.qtyTextSmall}>
                             {String(cartItem.qty).padStart(2, "0")}
@@ -720,7 +724,7 @@ export default function OrderCreateScreen() {
             styles.scrollContent,
             currentStep === 2 && { paddingBottom: 100 },
           ]}
-          scrollEnabled={currentStep === 0 && !showStoreDropdown}
+          scrollEnabled={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
