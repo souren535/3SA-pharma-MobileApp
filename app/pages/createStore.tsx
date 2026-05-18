@@ -442,7 +442,7 @@ export default function CreateStoreScreen() {
     } catch (error: any) {
       console.error('Full Submission Error:', error);
       let msg = 'Failed to create store. Please try again.';
-      
+
       if (error?.response?.data) {
         const data = error.response.data;
         // Handle Laravel validation errors
@@ -455,7 +455,7 @@ export default function CreateStoreScreen() {
       } else if (error?.message) {
         msg = error.message;
       }
-      
+
       showPopup('Error', msg);
     } finally {
       setIsSubmitting(false);
@@ -760,7 +760,7 @@ export default function CreateStoreScreen() {
         <View style={{
           backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#F3F4F6',
           paddingHorizontal: scale(20), paddingTop: scale(12),
-          paddingBottom: Math.max(insets.bottom, scale(16)),
+          paddingBottom: insets.bottom + scale(16),
           flexDirection: 'row', gap: scale(12),
         }}>
           {currentStep > 0 && (
@@ -876,6 +876,7 @@ export default function CreateStoreScreen() {
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                   padding: 16, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed',
                   borderColor: '#1A3F75', marginTop: 8, backgroundColor: '#F0F7FF',
+                  marginBottom: insets.bottom + scale(5),
                 }}
                 onPress={() => { setIsManualArea(true); setAreaId(''); setShowAreaPicker(false); }}
               >

@@ -348,8 +348,8 @@ export default function OrderCreateScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <ScrollView 
-                style={{ maxHeight: scale(300) }} 
+              <ScrollView
+                style={{ maxHeight: scale(300) }}
                 nestedScrollEnabled={true}
                 keyboardShouldPersistTaps="handled"
               >
@@ -739,7 +739,7 @@ export default function OrderCreateScreen() {
         <View
           style={[
             styles.bottomNav,
-            { paddingBottom: Math.max(insets.bottom, scale(16)) },
+            { paddingBottom: insets.bottom + scale(16) },
           ]}
         >
           {currentStep > 0 && (

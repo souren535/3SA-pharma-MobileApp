@@ -34,15 +34,26 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => setKeyboardVisible(true)
+      (e) => {
+        setKeyboardVisible(true);
+        if (Platform.OS === "android") {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
     );
     const keyboardDidHideListener = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardVisible(false)
+      () => {
+        setKeyboardVisible(false);
+        if (Platform.OS === "android") {
+          setKeyboardHeight(0);
+        }
+      }
     );
 
     return () => {
@@ -104,7 +115,7 @@ export default function LoginScreen() {
     if (forgotClosedTimeRef.current && forgotStep !== "EMAIL") {
       const elapsedMs = Date.now() - forgotClosedTimeRef.current;
       const elapsedSecs = Math.floor(elapsedMs / 1000);
-      
+
       // Reopen in same step if closed for less than 1 minute (60,000 ms)
       if (elapsedMs < 1 * 60 * 1000) {
         if (forgotStep === "OTP") {
@@ -119,7 +130,7 @@ export default function LoginScreen() {
         return;
       }
     }
-    
+
     // Default fallback (first open, or closed for >= 1 minute)
     resetForgotState();
     setForgotModalVisible(true);
@@ -164,7 +175,7 @@ export default function LoginScreen() {
     setForgotLoading(true);
     try {
       await authService.forgotPassword(forgotEmail);
-      
+
       showModal("success", "OTP Sent", "A 6-digit OTP has been sent to your email successfully.");
       setForgotStep("OTP");
       setOtpTimer(120);
@@ -205,7 +216,7 @@ export default function LoginScreen() {
     setForgotLoading(true);
     try {
       await authService.forgotPassword(forgotEmail);
-      
+
       showModal("success", "OTP Resent", "A new 6-digit OTP has been sent to your email.");
       setOtpTimer(120);
       setCanResend(false);
@@ -243,7 +254,7 @@ export default function LoginScreen() {
     setForgotLoading(true);
     try {
       await authService.resetPassword(forgotEmail, otpString, newPassword);
-      
+
       setForgotModalVisible(false);
       showModal("success", "Success", "Your password has been reset successfully. Please log in.");
       resetForgotState();
@@ -364,6 +375,7 @@ export default function LoginScreen() {
             shadowOpacity: 0.2,
             shadowRadius: 6,
             elevation: 4,
+            marginBottom: scale(16),
           }}
         >
           {forgotLoading ? (
@@ -767,7 +779,7 @@ export default function LoginScreen() {
               activeOpacity={1}
               onPress={closeForgotModal}
             />
-            
+
             {/* Modal Content Card */}
             <View
               style={{
@@ -776,7 +788,8 @@ export default function LoginScreen() {
                 borderTopRightRadius: scale(24),
                 paddingHorizontal: scale(24),
                 paddingTop: scale(20),
-                paddingBottom: Platform.OS === "ios" ? scale(35) : scale(25),
+                paddingBottom: Platform.OS === "ios" ? scale(35) : Math.max(scale(25), insets.bottom + scale(15)),
+                marginBottom: Platform.OS === "ios" ? 0 : keyboardHeight,
                 maxHeight: "80%",
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: -4 },

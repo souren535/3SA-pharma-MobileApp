@@ -477,9 +477,6 @@ export default function HomeScreen() {
             <Text className="text-[17px] font-bold text-[#1E293B]">
               Today's Performance
             </Text>
-            <TouchableOpacity>
-              <MaterialIcons name="chevron-right" size={24} color="#64748B" />
-            </TouchableOpacity>
           </View>
 
           <View className="flex-row justify-between mb-6 gap-[10px]">
@@ -549,7 +546,7 @@ export default function HomeScreen() {
               Priority Actions
             </Text>
           </View>
-          
+
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
           {/* Assigned Route Card */}
