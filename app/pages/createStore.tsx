@@ -354,7 +354,7 @@ export default function CreateStoreScreen() {
     setCurrentStep(prev => Math.max(prev - 1, 0));
   };
 
-  const handleValidateGST = () => {
+  const handleValidateGST = async () => {
     if (!gstNumber || gstNumber.length !== 15) {
       showPopup('Invalid GST', 'Please enter a valid 15-digit GST number.');
       setGstStatus('error');
@@ -368,12 +368,52 @@ export default function CreateStoreScreen() {
     }
     setIsValidatingGST(true);
     setGstStatus('idle');
-    setTimeout(() => {
+
+    try {
+      const apiKey = process.env.EXPO_PUBLIC_GST_API_KEY || 'e0f96d43aa26b0dd45a97409ace7a7a4';
+      const url = `https://sheet.gstincheck.co.in/check/${apiKey}/${gstNumber}`;
+      console.log('Validating GSTIN via URL:', url);
+      
+      const response = await fetch(url);
+      const resData = await response.json();
+      console.log('GST API Response:', resData);
+
+      if (resData && resData.flag === true) {
+        setGstStatus('success');
+        const legalName = resData.data?.lgnm || resData.data?.tradeNam || '';
+        const status = resData.data?.sts || 'Active';
+        
+        let message = `GSTIN is valid and active.\n`;
+        if (legalName) {
+          message += `\nLegal Name: ${legalName}`;
+        }
+        if (status) {
+          message += `\nStatus: ${status}`;
+        }
+        
+        // Auto-fill some fields if they are empty
+        if (legalName && !shopName) {
+          setShopName(legalName);
+        }
+        if (legalName && !ownerName) {
+          setOwnerName(legalName);
+        }
+        
+        showPopup('GST Verified', message, true);
+      } else {
+        setGstStatus('error');
+        const errMsg = resData?.message || 'The GST number could not be validated or is invalid.';
+        showPopup('GST Validation Failed', errMsg);
+      }
+    } catch (err: any) {
+      console.error('GST Validation Error:', err);
+      setGstStatus('error');
+      showPopup('Verification Error', 'Unable to connect to the GST verification service. Please try again.');
+    } finally {
       setIsValidatingGST(false);
-      setGstStatus('success');
-      showPopup('GST Verified', 'GST number format is valid.', true);
-    }, 800);
+    }
   };
+
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
