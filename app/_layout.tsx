@@ -6,8 +6,8 @@ import { useEffect } from "react";
 import "../global.css";
 import { useAuthStore } from "../store/store";
 
-import * as NavigationBar from 'expo-navigation-bar';
-import { Platform } from "react-native";
+
+
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,12 +22,8 @@ export default function RootLayout() {
     checkAuth();
   }, [checkAuth]);
 
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync('#ffffff');
-      NavigationBar.setBehaviorAsync('overlay-swipe');
-    }
-  }, []);
+
+
 
   useEffect(() => {
     if (loaded || error) {
@@ -43,6 +39,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="pages" options={{ headerShown: false }} />

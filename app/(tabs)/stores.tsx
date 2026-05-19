@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, ActivityIndicator, Modal, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, ActivityIndicator, Modal, Alert, TextInput, RefreshControl } from 'react-native';
 import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useShopStore, IMAGE_BASE_URL, useAttendanceStore } from '../../store/store';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-
+import LottieView from 'lottie-react-native';
 // Helper to get local YYYY-MM-DD string
 const getLocalDateString = (date: Date) => {
   const year = date.getFullYear();
@@ -51,6 +51,12 @@ export default function StoresScreen() {
   const { isWorking } = useAttendanceStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchShops().finally(() => setRefreshing(false));
+  }, [fetchShops]);
 
   const monthDates = useMemo(() => getDatesForMonth(selectedMonth, selectedYear), [selectedMonth, selectedYear]);
 
@@ -114,7 +120,7 @@ export default function StoresScreen() {
             )}
           </View>
           <View className="flex-row gap-3 ml-2">
-            <TouchableOpacity 
+            <TouchableOpacity
               className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
               onPress={() => setShowSearch(!showSearch)}
             >
@@ -188,10 +194,30 @@ export default function StoresScreen() {
       )}
 
       {/* Scrollable Store List */}
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="transparent"
+            colors={["transparent"]}
+            style={{ backgroundColor: "transparent" }}
+            progressBackgroundColor="transparent"
+            progressViewOffset={-5000}
+          />
+        }
+      >
         {isLoading ? (
           <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#1A3F75" />
+            <LottieView
+              source={require('../../assets/animation/pill-optimized.json')}
+              autoPlay
+              loop
+              style={{ width: 150, height: 150 }}
+            />
             <Text className="text-gray-500 mt-4 font-medium tracking-wide">Loading Stores...</Text>
           </View>
         ) : filteredShops.length > 0 ? (

@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import LottieView from "lottie-react-native";
+
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -58,7 +58,7 @@ export default function HomeScreen() {
     "login",
   );
   const [submitting, setSubmitting] = useState(false);
-  const lottieRef = useRef<LottieView>(null);
+
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [showLottie, setShowLottie] = useState(true);

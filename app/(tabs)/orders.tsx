@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useOrderStore, useAttendanceStore } from "../../store/store";
+import LottieView from "lottie-react-native";
 
 const monthNames = [
   "Jan",
@@ -44,6 +46,12 @@ export default function OrdersScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const { isWorking } = useAttendanceStore();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    fetchAllOrders().finally(() => setRefreshing(false));
+  }, [fetchAllOrders]);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -234,13 +242,28 @@ export default function OrdersScreen() {
             className="flex-1"
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh} 
+                tintColor="transparent" 
+                colors={["transparent"]} 
+                style={{ backgroundColor: "transparent" }}
+                progressBackgroundColor="transparent" 
+                progressViewOffset={-5000}
+              />
+            }
           >
             {isLoading ? (
-              <ActivityIndicator
-                size="large"
-                color="#1A3F75"
-                style={{ marginTop: 50 }}
-              />
+              <View className="flex-1 items-center justify-center py-20">
+                <LottieView 
+                  source={require('../../assets/animation/pill-optimized.json')} 
+                  autoPlay 
+                  loop 
+                  style={{ width: 150, height: 150 }} 
+                />
+                <Text className="text-gray-500 mt-4 font-medium tracking-wide">Loading Orders...</Text>
+              </View>
             ) : filteredOrders.length === 0 ? (
               <Text className="text-center text-gray-500 mt-10">
                 No orders found for this date.
