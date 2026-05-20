@@ -24,8 +24,9 @@ export const shopService = {
 
     try {
       const { data } = await API.post('/shops', shopData, {
-        // Do NOT set Content-Type manually. Axios + React Native XHR will 
-        // automatically set 'multipart/form-data; boundary=...'
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
         timeout: 60000, // 60s timeout for multi-image uploads
       });
       return data;

@@ -467,6 +467,11 @@ export default function OrderCreateScreen() {
               placeholderTextColor="#ccc"
               onChangeText={setModalSearch}
             />
+            {modalSearch !== "" && (
+              <TouchableOpacity onPress={() => setModalSearch("")}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

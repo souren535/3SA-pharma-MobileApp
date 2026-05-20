@@ -35,6 +35,27 @@ const monthNames = [
 const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const availableYears = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
+const getStatusColor = (status: string) => {
+  const s = status?.toLowerCase() || "";
+  if (s === "pending") return "#F59E0B";
+  if (s === "accepted") return "#3B82F6";
+  if (s === "delivered" || s === "completed") return "#10B981";
+  if (s === "cancelled" || s === "rejected") return "#EF4444";
+  return "#3AA58E";
+};
+
+const formatDisplayDate = (dateStr: string) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -58,6 +79,10 @@ export default function OrdersScreen() {
   useFocusEffect(
     React.useCallback(() => {
       fetchAllOrders();
+      return () => {
+        setShowSearch(false);
+        setSearchQuery("");
+      };
     }, []),
   );
 
@@ -135,6 +160,7 @@ export default function OrdersScreen() {
                 className="flex-1 ml-4 bg-white/80 rounded-xl px-3 py-1.5 text-gray-800"
                 placeholder="Search orders..."
                 value={searchQuery}
+                placeholderTextColor={"#1E293B"}
                 onChangeText={setSearchQuery}
                 autoFocus
               />
@@ -143,7 +169,14 @@ export default function OrdersScreen() {
           <View className="flex-row gap-3 ml-2">
             <TouchableOpacity
               className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-              onPress={() => setShowSearch(!showSearch)}
+              onPress={() => {
+                if (showSearch) {
+                  setSearchQuery("");
+                  setShowSearch(false);
+                } else {
+                  setShowSearch(true);
+                }
+              }}
             >
               <Ionicons
                 name={showSearch ? "close" : "search"}
@@ -243,24 +276,24 @@ export default function OrdersScreen() {
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 90 }}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl 
-                refreshing={refreshing} 
-                onRefresh={onRefresh} 
-                tintColor="transparent" 
-                colors={["transparent"]} 
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="transparent"
+                colors={["transparent"]}
                 style={{ backgroundColor: "transparent" }}
-                progressBackgroundColor="transparent" 
+                progressBackgroundColor="transparent"
                 progressViewOffset={-5000}
               />
             }
           >
             {isLoading ? (
               <View className="flex-1 items-center justify-center py-20">
-                <LottieView 
-                  source={require('../../assets/animation/pill-optimized.json')} 
-                  autoPlay 
-                  loop 
-                  style={{ width: 150, height: 150 }} 
+                <LottieView
+                  source={require('../../assets/animation/pill-optimized.json')}
+                  autoPlay
+                  loop
+                  style={{ width: 150, height: 150 }}
                 />
                 <Text className="text-gray-500 mt-4 font-medium tracking-wide">Loading Orders...</Text>
               </View>
@@ -269,91 +302,93 @@ export default function OrdersScreen() {
                 No orders found for this date.
               </Text>
             ) : (
-              filteredOrders.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center"
-                  onPress={() =>
-                    router.push({
-                      pathname: "/pages/orderDetails",
-                      params: {
-                        id: item.id,
-                        isOrder: "true",
-                        orderNo: item.order_no,
-                        store: item.shop?.shop_name,
-                        amount: item.total_amount,
-                      },
-                    })
-                  }
-                >
-                  {/* Circle Icon */}
-                  <View className="w-12 h-12 rounded-xl items-center justify-center bg-[#F3F6F8]">
-                    <Ionicons name="document-text" size={24} color="#4C73B6" />
-                  </View>
+              filteredOrders.map((item) => {
+                const statusColor = getStatusColor(item.status);
+                const invoiceNo = item.manual_invoice_no || item.invoice_no;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center justify-between relative overflow-hidden"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/pages/orderDetails",
+                        params: {
+                          id: item.id,
+                          isOrder: "true",
+                          orderNo: item.order_no,
+                          store: item.shop?.shop_name,
+                          amount: item.total_amount,
+                          date: item.billing_date || item.created_at,
+                        },
+                      })
+                    }
+                  >
+                    <View className="flex-row items-center flex-1 pr-2">
+                      {/* Left Document Icon */}
+                      <View className="w-11 h-11 rounded-xl items-center justify-center bg-[#F3F6F8]">
+                        <Ionicons name="document-text" size={24} color="#4C73B6" />
+                      </View>
 
-                  {/* Content */}
-                  <View className="flex-1 ml-4">
-                    <View className="flex-row justify-between items-start">
-                      <Text
-                        className="text-sm font-bold text-gray-800"
-                        numberOfLines={1}
-                      >
-                        {item.order_no}
-                      </Text>
-                      <Text className="text-xs font-bold text-[#FF4A4A]">
-                        Rs. {item.total_amount}
-                      </Text>
-                    </View>
-                    <Text className="text-xs text-gray-600 mt-0.5">
-                      Billing Date :{" "}
-                      {new Date(
-                        item.billing_date || item.created_at,
-                      ).toLocaleDateString()}
-                    </Text>
-                    <View className="flex-row justify-between items-center mt-1">
-                      <View className="flex-row items-center">
-                        <Text className="text-xs font-semibold text-gray-500">
-                          Status :{" "}
-                        </Text>
-                        <Text
-                          className="text-xs font-bold"
-                          style={{
-                            color:
-                              item.status?.toLowerCase() === "pending"
-                                ? "#F59E0B"
-                                : item.status?.toLowerCase() === "accepted"
-                                  ? "#3B82F6"
-                                  : item.status?.toLowerCase() === "delivered"
-                                    ? "#10B981"
-                                    : item.status?.toLowerCase() === "completed"
-                                      ? "#10B981"
-                                      : item.status?.toLowerCase() ===
-                                          "cancelled"
-                                        ? "#EF4444"
-                                        : item.status?.toLowerCase() ===
-                                            "rejected"
-                                          ? "#EF4444"
-                                          : "#3AA58E",
-                          }}
-                        >
-                          {item.status}
+                      {/* Middle Info Column */}
+                      <View className="flex-1 ml-3 pr-4">
+                        <View className="flex-row items-center justify-between">
+                          <Text
+                            className="text-[14px] font-bold text-gray-800"
+                            numberOfLines={1}
+                          >
+                            {item.order_no}
+                          </Text>
+                        </View>
+
+                        {invoiceNo && invoiceNo !== null ? (
+                          <View>
+                            <View className="flex-row items-center justify-between mt-1">
+                              <Text
+                                className="text-xs text-gray-600 mr-4"
+                                numberOfLines={1}
+                              >
+                                Invoice : {invoiceNo}
+                              </Text>
+                              <View className="flex-1 items-start">
+                                <Text className="text-[15px] font-black text-[#FF4A4A]">
+                                  Rs. {item.total_amount}
+                                </Text>
+                              </View>
+                              <View className="w-8 items-center" />
+                            </View>
+                            <Text className="text-xs text-gray-500 mt-1">
+                              Billing Date : {formatDisplayDate(item.billing_date || item.created_at)}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View className="flex-row items-center justify-between mt-1">
+                            <Text className="text-xs text-gray-500 mr-4" numberOfLines={1}>
+                              Billing Date : {formatDisplayDate(item.billing_date || item.created_at)}
+                            </Text>
+                            <View className="flex-1 items-start">
+                              <Text className="text-[15px] font-black text-[#FF4A4A]">
+                                Rs. {item.total_amount}
+                              </Text>
+                            </View>
+                            <View className="w-8 items-center" />
+                          </View>
+                        )}
+
+                        {/* Store name at the bottom of the card */}
+                        <Text className="text-xs text-gray-400 font-semibold mt-1" numberOfLines={1}>
+                          Store : {item.shop?.shop_name || "Unknown Store"}
                         </Text>
                       </View>
-                      <Text
-                        className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md"
-                        numberOfLines={1}
-                      >
-                        {item.shop?.shop_name || "Unknown Store"}
-                      </Text>
                     </View>
-                  </View>
 
-                  {/* Arrow */}
-                  <View className="ml-2 justify-center">
-                    <Ionicons name="caret-forward" size={14} color="#A0AEC0" />
-                  </View>
-                </TouchableOpacity>
-              ))
+                    {/* Right-side Full-height Status Color Strip */}
+                    <View
+                      className="absolute right-0 top-0 bottom-0 w-1.5"
+                      style={{ backgroundColor: statusColor }}
+                    />
+                  </TouchableOpacity>
+                );
+              })
             )}
           </ScrollView>
 

@@ -1,10 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import API from '../../utils/api';
+
+const formatDisplayDate = (date?: string | string[]) => {
+  const value = Array.isArray(date) ? date[0] : date;
+  if (!value) return '-';
+  const dateObj = new Date(value);
+  if (isNaN(dateObj.getTime())) return value;
+  return dateObj.toLocaleDateString('en-GB');
+};
+
+const getStatusMeta = (status?: string | string[]) => {
+  const value = Array.isArray(status) ? status[0] : status;
+  const normalized = value?.toLowerCase();
+  if (normalized === 'pending') return { icon: 'time-outline' as const, color: '#F59E0B', bg: '#FEF3C7' };
+  if (normalized === 'accepted') return { icon: 'checkmark-done-outline' as const, color: '#3B82F6', bg: '#DBEAFE' };
+  if (normalized === 'delivered' || normalized === 'completed') return { icon: 'checkmark-circle-outline' as const, color: '#10B981', bg: '#DCFCE7' };
+  if (normalized === 'cancelled' || normalized === 'rejected') return { icon: 'close-circle-outline' as const, color: '#EF4444', bg: '#FEE2E2' };
+  return { icon: 'ellipse-outline' as const, color: '#3AA58E', bg: '#DCFCE7' };
+};
+
+const cleanAmount = (amount?: string | string[] | number) => {
+  const value = Array.isArray(amount) ? amount[0] : amount;
+  return value?.toString().replace('Rs.', '').replace('₹', '').trim() || '0.00';
+};
 
 export default function OrderDetailsScreen() {
   const insets = useSafeAreaInsets();
@@ -35,8 +58,11 @@ export default function OrderDetailsScreen() {
     }
   }, [params.id]);
 
-  const displayStoreName = orderDetails?.shop?.shop_name || params.store || 'Unknown Store';
   const displayOrderNo = orderDetails?.order_no || params.orderNo || `ORD-${params.id || 'N/A'}`;
+  const displayInvoiceNo = orderDetails?.manual_invoice_no || orderDetails?.invoice_no || params.manualInvoiceNo;
+  const displayDate = orderDetails?.billing_date || orderDetails?.created_at || params.billingDate || params.date;
+  const displayAmount = orderDetails?.total_amount || params.amount;
+  const statusMeta = getStatusMeta(orderDetails?.status || params.status || params.type || 'Pending');
 
   return (
     <View style={styles.container}>
@@ -52,87 +78,85 @@ export default function OrderDetailsScreen() {
             </TouchableOpacity>
             <View className="ml-4 flex-1">
               <Text className="text-white text-xl font-bold">{isOrder ? 'Order Details' : 'Payment Details'}</Text>
-              <Text className="text-white/80 text-xs mt-1">{displayStoreName}</Text>
+              <Text className="text-white/80 text-xs mt-1">{displayOrderNo}</Text>
             </View>
           </View>
         </View>
       </LinearGradient>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        {isLoading ? (
-          <View className="py-10 items-center">
-             <ActivityIndicator size="large" color="#1A3F75" />
-          </View>
-        ) : (
-          <>
-            {/* Main Card */}
-            <View className="bg-white rounded-2xl shadow-sm p-5 mb-5">
-              <View className="flex-row justify-between items-center border-b border-gray-100 pb-4 mb-4">
-                <View>
-                  <Text className="text-gray-500 text-xs mb-1">{isOrder ? 'Order Number' : 'Transaction ID'}</Text>
-                  <Text className="text-gray-800 text-base font-bold">{displayOrderNo}</Text>
-                </View>
-                <View className={`px-3 py-1 rounded-full ${isOrder ? 'bg-[#FF7676]/10' : 'bg-[#47B8A0]/10'}`}>
-                  <Text className={`text-xs font-bold ${isOrder ? 'text-[#FF7676]' : 'text-[#47B8A0]'}`}>
-                    {orderDetails?.status || params.type || 'Pending'}
-                  </Text>
-                </View>
+      {isLoading ? (
+        <View className="flex-1 py-10 items-center justify-center">
+           <ActivityIndicator size="large" color="#1A3F75" />
+        </View>
+      ) : (
+        <View className="flex-1 p-5 pb-0">
+          {/* Main Card */}
+          <View className="bg-white rounded-2xl shadow-sm p-5 mb-4">
+            <View className="flex-row justify-between items-start border-b border-gray-100 pb-4 mb-4">
+              <View className="flex-1 pr-4">
+                <Text className="text-gray-500 text-xs mb-1">{isOrder ? 'Order Number' : 'Transaction ID'}</Text>
+                <Text className="text-gray-800 text-base font-bold" numberOfLines={1}>{displayOrderNo}</Text>
               </View>
+              <View className="w-9 h-9 rounded-full items-center justify-center" style={{ backgroundColor: statusMeta.bg }}>
+                <Ionicons name={statusMeta.icon} size={21} color={statusMeta.color} />
+              </View>
+            </View>
 
+            {displayInvoiceNo ? (
               <View className="flex-row justify-between items-center mb-4">
-                <View>
-                  <Text className="text-gray-500 text-xs mb-1">Date</Text>
-                  <Text className="text-gray-800 font-medium">
-                    {orderDetails?.created_at ? new Date(orderDetails.created_at).toLocaleDateString('en-GB') : (params.billingDate || params.date || params.date)}
-                  </Text>
+                <View className="flex-1 pr-3">
+                  <Text className="text-gray-500 text-xs mb-1">Invoice Number</Text>
+                  <Text className="text-gray-800 font-semibold" numberOfLines={1}>{displayInvoiceNo}</Text>
                 </View>
                 <View className="items-end">
                   <Text className="text-gray-500 text-xs mb-1">Amount</Text>
                   <Text className={`text-xl font-bold ${isOrder ? 'text-[#FF4A4A]' : 'text-[#3AA58E]'}`}>
-                    ₹{orderDetails?.total_amount || params.amount?.toString().replace('Rs.', '').trim() || '0.00'}
+                    ₹{cleanAmount(displayAmount)}
                   </Text>
                 </View>
               </View>
-
-              <View className="bg-[#F3F6F8] p-4 rounded-xl mt-2 border border-gray-100">
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="storefront-outline" size={16} color="#4C73B6" />
-                  <Text className="text-[#4C73B6] text-xs font-semibold ml-1.5">Store Details</Text>
+            ) : (
+              <View className="flex-row justify-between items-center mb-4">
+                <View>
+                  <Text className="text-gray-500 text-xs mb-1">Date</Text>
+                  <Text className="text-gray-800 font-medium">{formatDisplayDate(displayDate)}</Text>
                 </View>
-                <Text className="text-gray-800 font-bold">{displayStoreName}</Text>
-                {orderDetails?.shop?.address && <Text className="text-gray-600 text-sm mt-2">{orderDetails.shop.address}</Text>}
+                <View className="items-end">
+                  <Text className="text-gray-500 text-xs mb-1">Amount</Text>
+                  <Text className={`text-xl font-bold ${isOrder ? 'text-[#FF4A4A]' : 'text-[#3AA58E]'}`}>
+                    ₹{cleanAmount(displayAmount)}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
-            {isOrder && (
-              <View className="bg-white rounded-2xl shadow-sm p-5 mb-5">
-                <Text className="text-gray-800 font-bold mb-4 text-[16px]">Items Summary</Text>
+            {displayInvoiceNo && (
+              <View>
+                <Text className="text-gray-500 text-xs mb-1">Date</Text>
+                <Text className="text-gray-800 font-medium">{formatDisplayDate(displayDate)}</Text>
+              </View>
+            )}
+          </View>
+
+          {isOrder && (
+            <View className="bg-white rounded-2xl shadow-sm p-5 mb-5 flex-1">
+              <Text className="text-gray-800 font-bold mb-3 text-[16px]">Items Summary</Text>
+              <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                 {orderDetails?.items && orderDetails.items.length > 0 ? orderDetails.items.map((item: any, index: number) => (
-                    <View key={index} className="flex-row justify-between items-center mb-4 pb-4 border-b border-gray-50">
-                      <View className="flex-row items-center flex-1 pr-4">
-
-                        <View className="flex-1">
-                          <Text className="text-gray-800 font-semibold" numberOfLines={1}>{item.product?.product_name || `Product #${item.product_id}`}</Text>
-                          <Text className="text-gray-500 text-xs mt-1">Qty: {item.quantity}</Text>
-                        </View>
-                      </View>
-                      <Text className="text-gray-800 font-bold text-xs">₹{item.subtotal || (parseFloat(item.price) * item.quantity).toFixed(2)}</Text>
+                    <View key={index} className="flex-row justify-between items-center py-2.5 border-b border-gray-50">
+                      <Text className="text-gray-800 font-semibold flex-1 pr-4" numberOfLines={1}>{item.product?.product_name || `Product #${item.product_id}`}</Text>
+                      <Text className="text-gray-700 font-bold text-xs">x{item.quantity}</Text>
                     </View>
                 )) : (
                   <View className="py-4 items-center">
                     <Text className="text-gray-400 text-sm">No items found for this order.</Text>
                   </View>
                 )}
-                
-                <View className="flex-row justify-between mt-4 pt-4 border-t border-dashed border-gray-200">
-                  <Text className="text-gray-800 font-bold text-[16px]">Total Amount</Text>
-                  <Text className="text-[#FF4A4A] font-bold text-xl">₹{orderDetails?.total_amount || params.amount?.toString().replace('Rs.', '').trim() || '0.00'}</Text>
-                </View>
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }

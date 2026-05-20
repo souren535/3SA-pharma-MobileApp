@@ -79,6 +79,11 @@ export default function StoresScreen() {
       }, 500);
 
       fetchShops();
+
+      return () => {
+        setShowSearch(false);
+        setSearchQuery("");
+      };
     }, [fetchShops])
   );
 
@@ -111,10 +116,11 @@ export default function StoresScreen() {
               </View>
             ) : (
               <TextInput
-                className="flex-1 ml-4 bg-white/80 rounded-xl px-3 py-1.5 text-gray-800"
+                className="flex-1 ml-4 bg-white/80 rounded-xl px-4 py-1.5 text-gray-800"
                 placeholder="Search stores..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                placeholderTextColor="#1E293B"
                 autoFocus
               />
             )}
@@ -122,7 +128,14 @@ export default function StoresScreen() {
           <View className="flex-row gap-3 ml-2">
             <TouchableOpacity
               className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-              onPress={() => setShowSearch(!showSearch)}
+              onPress={() => {
+                if (showSearch) {
+                  setSearchQuery("");
+                  setShowSearch(false);
+                } else {
+                  setShowSearch(true);
+                }
+              }}
             >
               <Ionicons name={showSearch ? "close" : "search"} size={20} color="#1E293B" />
             </TouchableOpacity>

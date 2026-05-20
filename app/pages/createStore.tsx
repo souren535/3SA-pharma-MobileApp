@@ -433,6 +433,22 @@ export default function CreateStoreScreen() {
           uri = `file://${uri}`;
         }
 
+        // On Android, decode percent-encoded characters (like %2540 -> %40 -> @)
+        // to prevent React Native XHR from failing to find the file on Android disk
+        if (Platform.OS === 'android' && uri.startsWith('file://')) {
+          try {
+            let decoded = uri;
+            while (decoded.includes('%')) {
+              const next = decodeURIComponent(decoded);
+              if (next === decoded) break;
+              decoded = next;
+            }
+            uri = decoded;
+          } catch (e) {
+            console.warn('URI decode failed:', e);
+          }
+        }
+
         try {
           const name = `shop_image_${i}.webp`;
           const fileObj = {

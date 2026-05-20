@@ -64,49 +64,81 @@ export default function NotificationsScreen() {
             <Text className="text-gray-500 font-medium">No notifications yet</Text>
           </View>
         ) : (
-          notifications.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => handleNotificationPress(item)}
-              className={`bg-white mb-3 p-4 rounded-2xl shadow-sm border-l-4 ${
-                item.is_read ? 'border-gray-200' : 'border-[#1A3F75]'
-              }`}
-            >
-              <View className="flex-row items-start">
-                <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-                  item.is_read ? 'bg-gray-50' : 'bg-blue-50'
-                }`}>
-                  <MaterialIcons 
-                    name={item.target_type === 'order' ? 'shopping-cart' : 'info'} 
-                    size={20} 
-                    color={item.is_read ? '#9CA3AF' : '#1A3F75'} 
-                  />
-                </View>
-                <View className="flex-1">
-                  <View className="flex-row justify-between items-center mb-1">
-                    <Text className={`text-[15px] ${item.is_read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
-                      {item.title}
-                    </Text>
-                    {!item.is_read && (
-                      <View className="w-2 h-2 bg-red-500 rounded-full" />
-                    )}
+          notifications.map((item) => {
+            const getNotificationIconDetails = (targetType: string, isRead: boolean) => {
+              if (isRead) {
+                switch (targetType?.toLowerCase()) {
+                  case 'order':
+                    return { icon: 'shopping-cart', bgColor: 'bg-gray-50', iconColor: '#9CA3AF' };
+                  case 'warning':
+                  case 'alert':
+                    return { icon: 'warning', bgColor: 'bg-gray-50', iconColor: '#9CA3AF' };
+                  case 'announcement':
+                  case 'broadcast':
+                    return { icon: 'campaign', bgColor: 'bg-gray-50', iconColor: '#9CA3AF' };
+                  default:
+                    return { icon: 'notifications', bgColor: 'bg-gray-50', iconColor: '#9CA3AF' };
+                }
+              }
+              
+              switch (targetType?.toLowerCase()) {
+                case 'order':
+                  return { icon: 'shopping-cart', bgColor: 'bg-blue-50', iconColor: '#1A3F75' };
+                case 'warning':
+                case 'alert':
+                  return { icon: 'warning', bgColor: 'bg-red-50', iconColor: '#DC2626' };
+                case 'announcement':
+                case 'broadcast':
+                  return { icon: 'campaign', bgColor: 'bg-amber-50', iconColor: '#D97706' };
+                default:
+                  return { icon: 'notifications', bgColor: 'bg-sky-50', iconColor: '#0284C7' };
+              }
+            };
+
+            const iconDetails = getNotificationIconDetails(item.target_type, item.is_read);
+
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => handleNotificationPress(item)}
+                className={`bg-white mb-3 p-4 rounded-2xl shadow-sm border-l-4 ${
+                  item.is_read ? 'border-gray-200' : 'border-[#1A3F75]'
+                }`}
+              >
+                <View className="flex-row items-start">
+                  <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${iconDetails.bgColor}`}>
+                    <MaterialIcons 
+                      name={iconDetails.icon as any} 
+                      size={20} 
+                      color={iconDetails.iconColor} 
+                    />
                   </View>
-                  <Text className="text-gray-500 text-sm leading-5">
-                    {item.message}
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] mt-2 uppercase font-bold tracking-wider">
-                    {new Date(item.created_at).toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Text>
+                  <View className="flex-1">
+                    <View className="flex-row justify-between items-center mb-1">
+                      <Text className={`text-[15px] ${item.is_read ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>
+                        {item.title}
+                      </Text>
+                      {!item.is_read && (
+                        <View className="w-2 h-2 bg-red-500 rounded-full" />
+                      )}
+                    </View>
+                    <Text className="text-gray-500 text-sm leading-5">
+                      {item.message}
+                    </Text>
+                    <Text className="text-gray-400 text-[10px] mt-2 uppercase font-bold tracking-wider">
+                      {new Date(item.created_at).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </View>

@@ -1,17 +1,18 @@
-import * as imageManupulator from "expo-image-manipulator";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 export const compressToWebP = async (
   uri: string,
-  qulity: number = 0.7,
+  quality: number = 0.7,
 ): Promise<string> => {
   try {
-    const result = await imageManupulator.manipulateAsync(uri, [], {
-      compress: qulity,
-      format: imageManupulator.SaveFormat.WEBP,
+    const result = await manipulateAsync(uri, [], {
+      compress: quality,
+      format: SaveFormat.WEBP,
     });
+    console.log("Image successfully compressed to WebP format:", result.uri);
     return result.uri;
   } catch (err) {
-    console.log("compresson error happen", err);
+    console.warn("compression error happen, falling back to original URI", err);
     return uri;
   }
 };

@@ -348,7 +348,7 @@ export default function HomeScreen() {
             borderBottomRightRadius: 28,
             overflow: "hidden",
           }}
-          className="px-5 pb-8"
+          className="px-5 pb-4"
         >
           {/* Top row: Brand + Date */}
           <View className="flex-row justify-between items-center mb-4">
@@ -441,7 +441,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Tagline / Stores Today Card inside header */}
-          <View className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-5 shadow-sm shadow-black/10">
+          {/* <View className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-5 shadow-sm shadow-black/10">
             <View className="mr-3.5">
               <View className="w-[46px] h-[46px] rounded-[14px] bg-[#EFF6FF] justify-center items-center">
                 <MaterialIcons name="store" size={22} color="#1E3A8A" />
@@ -467,7 +467,7 @@ export default function HomeScreen() {
                 Visited Today
               </Text>
             </View>
-          </View>
+          </View> */}
         </LinearGradient>
 
         {/* ===== BODY CONTENT ===== */}
@@ -479,62 +479,101 @@ export default function HomeScreen() {
             </Text>
           </View>
 
+          <View className="flex-row justify-between mb-2.5 gap-[10px]">
+            {/* New Stores */}
+            <View className="flex-1 rounded-2xl p-3 bg-[#EFF6FF] border border-[#DBEAFE] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#DBEAFE] mr-2">
+                  <MaterialIcons name="store" size={16} color="#2563EB" />
+                </View>
+                <Text className="text-[15px] font-extrabold text-[#1E40AF] flex-1" numberOfLines={1}>
+                  {stats?.today_new_stores || 0}
+                </Text>
+              </View>
+              <Text className="text-[11px] font-semibold text-[#64748B]">
+                New Stores
+              </Text>
+            </View>
+
+            {/* Visits */}
+            <View className="flex-1 rounded-2xl p-3 bg-[#FFFBEB] border border-[#FEF3C7] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#FEF3C7] mr-2">
+                  <MaterialIcons name="visibility" size={16} color="#D97706" />
+                </View>
+                <Text className="text-[15px] font-extrabold text-[#92400E] flex-1" numberOfLines={1}>
+                  {stats?.today_visits || 0}
+                </Text>
+              </View>
+              <Text className="text-[11px] font-semibold text-[#64748B]">
+                Visits
+              </Text>
+            </View>
+
+            {/* Total Stores */}
+            <View className="flex-1 rounded-2xl p-3 bg-[#ECFDF5] border border-[#D1FAE5] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#D1FAE5] mr-2">
+                  <MaterialIcons name="storefront" size={16} color="#059669" />
+                </View>
+                <Text className="text-[15px] font-extrabold text-[#065F46] flex-1" numberOfLines={1}>
+                  {shops.length || 0}
+                </Text>
+              </View>
+              <Text className="text-[11px] font-semibold text-[#64748B]">
+                Total Stores
+              </Text>
+            </View>
+          </View>
+
           <View className="flex-row justify-between mb-6 gap-[10px]">
             {/* Sales */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#ECFDF5]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#D1FAE5]">
-                <MaterialIcons name="trending-up" size={18} color="#059669" />
+            <View className="flex-1 rounded-2xl p-3 bg-[#F0FDF4] border border-[#DCFCE7] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#DCFCE7] mr-2">
+                  <MaterialIcons name="trending-up" size={16} color="#15803D" />
+                </View>
+                <Text className="text-[14px] font-extrabold text-[#166534] flex-1" numberOfLines={1}>
+                  {stats?.today_sales || 0}
+                </Text>
               </View>
-              <Text className="text-[16px] font-extrabold mb-0.5 text-[#059669]">
-                ₹{stats?.today_sales || 0}
-              </Text>
               <Text className="text-[11px] font-semibold text-[#64748B]">
                 Sales
               </Text>
             </View>
 
             {/* Collection */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#EFF6FF]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#DBEAFE]">
-                <MaterialIcons
-                  name="account-balance-wallet"
-                  size={18}
-                  color="#2563EB"
-                />
+            <View className="flex-1 rounded-2xl p-3 bg-[#EFF6FF] border border-[#DBEAFE] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#DBEAFE] mr-2">
+                  <MaterialIcons
+                    name="account-balance-wallet"
+                    size={16}
+                    color="#2563EB"
+                  />
+                </View>
+                <Text className="text-[14px] font-extrabold text-[#1E40AF] flex-1" numberOfLines={1}>
+                  ₹{stats?.today_collection || 0}
+                </Text>
               </View>
-              <Text className="text-[16px] font-extrabold mb-0.5 text-[#2563EB]">
-                ₹{stats?.today_collection || 0}
-              </Text>
               <Text className="text-[11px] font-semibold text-[#64748B]">
                 Collected
               </Text>
             </View>
 
-            {/* Visits */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#FFFBEB]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#FEF3C7]">
-                <MaterialIcons name="storefront" size={18} color="#D97706" />
-              </View>
-              <Text className="text-[16px] font-extrabold mb-0.5 text-[#D97706]">
-                {stats?.today_visits || 0}
-              </Text>
-              <Text className="text-[11px] font-semibold text-[#64748B]">
-                Visits
-              </Text>
-            </View>
-
             {/* Monthly */}
-            <View className="flex-1 items-center rounded-2xl py-3.5 px-1.5 bg-[#F5F3FF]">
-              <View className="w-[34px] h-[34px] rounded-[10px] justify-center items-center mb-2 bg-[#EDE9FE]">
-                <MaterialIcons name="insert-chart" size={18} color="#7C3AED" />
+            <View className="flex-1 rounded-2xl p-3 bg-[#F5F3FF] border border-[#EDE9FE] shadow-sm shadow-black/5">
+              <View className="flex-row items-center mb-2">
+                <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#EDE9FE] mr-2">
+                  <MaterialIcons name="insert-chart" size={16} color="#7C3AED" />
+                </View>
+                <Text className="text-[13px] font-extrabold text-[#6B21A8] flex-1" numberOfLines={1}>
+                  ₹{(stats?.monthly_sales || 0).toLocaleString("en-IN", {
+                    maximumFractionDigits: 0,
+                  })}
+                </Text>
               </View>
-              <Text className="text-[14px] font-extrabold mb-0.5 text-[#7C3AED]">
-                ₹
-                {(stats?.monthly_sales || 0).toLocaleString("en-IN", {
-                  maximumFractionDigits: 0,
-                })}
-              </Text>
-              <Text className="text-[10px] font-semibold text-[#64748B]">
+              <Text className="text-[11px] font-semibold text-[#64748B]">
                 Monthly
               </Text>
             </View>
@@ -547,133 +586,168 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-
-          {/* Assigned Route Card */}
-          {routes.length > 0 && (
-            <View className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10">
-              <View className="mr-3.5">
-                <View className="w-[46px] h-[46px] rounded-[14px] bg-[#F5F3FF] justify-center items-center">
-                  <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
-                </View>
-              </View>
-              <View className="flex-1">
-                <Text className="text-[14px] font-semibold text-[#64748B] mb-1">
-                  Assigned Route
-                </Text>
-                <Text className="text-[18px] font-extrabold text-[#1E293B]">
-                  {routes[0].name}
-                </Text>
-                <View className="flex-row items-center mt-0.5">
-                  <MaterialIcons name="location-on" size={12} color="#94A3B8" />
-                  <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
-                    {routes[0].areas?.length || 0} Areas
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Visit Next Store */}
-          {unvisitedStores.length > 0 && (
-            <View className="bg-white rounded-2xl mb-2.5 shadow-sm shadow-black/5 overflow-hidden">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 120 }}
+          >
+            {/* Assigned Route Card */}
+            {routes.length > 0 && (
               <TouchableOpacity
-                className="flex-row items-center p-4"
-                onPress={() => setIsNextStoreExpanded(!isNextStoreExpanded)}
+                activeOpacity={routes.length > 1 ? 0.7 : 1}
+                disabled={routes.length <= 1}
+                onPress={() => {
+                  if (routes.length > 1) {
+                    router.push("/pages/assignedRoutes");
+                  }
+                }}
+                className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10"
               >
-                <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#EDE9FE]">
-                  <MaterialIcons name="store" size={20} color="#7C3AED" />
+                <View className="mr-3.5">
+                  <View className="w-[46px] h-[46px] rounded-[14px] bg-[#F5F3FF] justify-center items-center">
+                    <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
+                  </View>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
-                    Visit Next Store
+                  <Text className="text-[14px] font-semibold text-[#64748B] mb-1">
+                    {routes.length > 1 ? "Assigned Routes" : "Assigned Route"}
                   </Text>
-                  <Text
-                    className="text-[12px] font-medium text-[#94A3B8]"
-                    numberOfLines={1}
-                  >
-                    {unvisitedStores[0].shop_name}, {unvisitedStores[0].address}
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name={isNextStoreExpanded ? "expand-less" : "expand-more"}
-                  size={24}
-                  color="#94A3B8"
-                />
-              </TouchableOpacity>
-
-              {isNextStoreExpanded && (
-                <View className="px-4 pb-4 pt-1 border-t border-gray-100">
-                  <View className="flex-row justify-between mb-2">
-                    <Text className="text-gray-500 text-xs font-semibold">
-                      Owner:
+                  <View className="flex-row items-center flex-wrap">
+                    <Text className="text-[18px] font-extrabold text-[#1E293B]">
+                      {routes[0].name}
                     </Text>
-                    <Text className="text-gray-800 text-xs font-bold">
-                      {unvisitedStores[0].owner_name}
-                    </Text>
+                    {routes.length > 1 && (
+                      <View className="bg-[#EEF2F6] px-2.5 py-0.5 rounded-md ml-2 border border-[#E2E8F0]">
+                        <Text className="text-[12px] font-bold text-[#475569]">
+                          +{routes.length - 1}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  <View className="flex-row justify-between mb-4">
-                    <Text className="text-gray-500 text-xs font-semibold">
-                      Contact:
-                    </Text>
-                    <Text className="text-gray-800 text-xs font-bold">
-                      {unvisitedStores[0].contact}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    className="bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
-                    onPress={() => {
-                      if (!isWorking) {
-                        showPopup("Action Required", "Please start your work day before placing an order.", "info");
-                        return;
-                      }
-                      router.push({
-                        pathname: "/pages/orderCreate",
-                        params: {
-                          storeId: unvisitedStores[0].id.toString(),
-                          storeName: unvisitedStores[0].shop_name,
-                          fromStore: "true",
-                        },
-                      });
-                    }}
-                  >
+                  <View className="flex-row items-center mt-0.5">
                     <MaterialIcons
-                      name="add-shopping-cart"
-                      size={18}
-                      color="white"
+                      name="location-on"
+                      size={12}
+                      color="#94A3B8"
                     />
-                    <Text className="text-white font-bold ml-2 text-sm">
-                      Place Order for this Store
+                    <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
+                      {routes.length > 1
+                        ? `${routes.reduce((sum, r) => sum + (r.areas?.length || 0), 0)} Areas across ${routes.length} Routes`
+                        : `${routes[0].areas?.length || 0} Areas`
+                      }
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
-              )}
-            </View>
-          )}
+                {routes.length > 1 && (
+                  <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+                )}
+              </TouchableOpacity>
+            )}
 
-          {/* Place New Order */}
-          <TouchableOpacity
-            className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5"
-            onPress={() => router.push("/pages/orderCreate")}
-          >
-            <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#DBEAFE]">
-              <MaterialIcons
-                name="add-shopping-cart"
-                size={20}
-                color="#2563EB"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
-                Place New Order
-              </Text>
-              <Text className="text-[12px] font-medium text-[#94A3B8]">
-                Create order for a store
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
-          </TouchableOpacity>
+            {/* Visit Next Store */}
+            {unvisitedStores.length > 0 && (
+              <View className="bg-white rounded-2xl mb-2.5 shadow-sm shadow-black/5 overflow-hidden">
+                <TouchableOpacity
+                  className="flex-row items-center p-4"
+                  onPress={() => setIsNextStoreExpanded(!isNextStoreExpanded)}
+                >
+                  <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#EDE9FE]">
+                    <MaterialIcons name="store" size={20} color="#7C3AED" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
+                      Visit Next Store
+                    </Text>
+                    <Text
+                      className="text-[12px] font-medium text-[#94A3B8]"
+                      numberOfLines={1}
+                    >
+                      {unvisitedStores[0].shop_name},{" "}
+                      {unvisitedStores[0].address}
+                    </Text>
+                  </View>
+                  <MaterialIcons
+                    name={isNextStoreExpanded ? "expand-less" : "expand-more"}
+                    size={24}
+                    color="#94A3B8"
+                  />
+                </TouchableOpacity>
+
+                {isNextStoreExpanded && (
+                  <View className="px-4 pb-4 pt-1 border-t border-gray-100">
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-500 text-xs font-semibold">
+                        Owner:
+                      </Text>
+                      <Text className="text-gray-800 text-xs font-bold">
+                        {unvisitedStores[0].owner_name}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between mb-4">
+                      <Text className="text-gray-500 text-xs font-semibold">
+                        Contact:
+                      </Text>
+                      <Text className="text-gray-800 text-xs font-bold">
+                        {unvisitedStores[0].contact}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      className="bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
+                      onPress={() => {
+                        if (!isWorking) {
+                          showPopup(
+                            "Action Required",
+                            "Please start your work day before placing an order.",
+                            "info",
+                          );
+                          return;
+                        }
+                        router.push({
+                          pathname: "/pages/orderCreate",
+                          params: {
+                            storeId: unvisitedStores[0].id.toString(),
+                            storeName: unvisitedStores[0].shop_name,
+                            fromStore: "true",
+                          },
+                        });
+                      }}
+                    >
+                      <MaterialIcons
+                        name="add-shopping-cart"
+                        size={18}
+                        color="white"
+                      />
+                      <Text className="text-white font-bold ml-2 text-sm">
+                        Place Order for this Store
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Place New Order */}
+            <TouchableOpacity
+              className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5"
+              onPress={() => router.push("/pages/orderCreate")}
+            >
+              <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#DBEAFE]">
+                <MaterialIcons
+                  name="add-shopping-cart"
+                  size={20}
+                  color="#2563EB"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[15px] font-bold text-[#1E293B] mb-0.5">
+                  Place New Order
+                </Text>
+                <Text className="text-[12px] font-medium text-[#94A3B8]">
+                  Create order for a store
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </View>
@@ -884,12 +958,17 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                       <Text className="text-gray-500 text-[12px] ml-6">
-                        Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
+                        Lat: {location.lat.toFixed(6)}, Lng:{" "}
+                        {location.lng.toFixed(6)}
                       </Text>
                     </View>
                   ) : (
                     <View className="flex-row items-center">
-                      <MaterialIcons name="location-off" size={18} color="#DC2626" />
+                      <MaterialIcons
+                        name="location-off"
+                        size={18}
+                        color="#DC2626"
+                      />
                       <Text className="ml-2 text-red-600 font-bold text-[14px]">
                         Unable to capture location
                       </Text>
@@ -911,7 +990,9 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   className={`py-4 rounded-2xl items-center shadow-sm ${
                     selfieUri && location
-                      ? attendanceType === "login" ? "bg-[#1A3F75]" : "bg-[#DC2626]"
+                      ? attendanceType === "login"
+                        ? "bg-[#1A3F75]"
+                        : "bg-[#DC2626]"
                       : "bg-gray-200"
                   }`}
                   onPress={handleAttendanceSubmit}
@@ -920,7 +1001,9 @@ export default function HomeScreen() {
                   {submitting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text className={`text-[16px] font-bold ${(!selfieUri || !location) ? 'text-gray-400' : 'text-white'}`}>
+                    <Text
+                      className={`text-[16px] font-bold ${!selfieUri || !location ? "text-gray-400" : "text-white"}`}
+                    >
                       {attendanceType === "login"
                         ? "Confirm & Start Work"
                         : "Confirm & End Work"}
