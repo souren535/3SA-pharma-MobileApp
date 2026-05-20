@@ -26,7 +26,7 @@ interface OnboardingSlide {
 const slides: OnboardingSlide[] = [
   {
     id: '1',
-    image: require('../assets/images/onboarding-1.png'),
+    image: require('../assets/images/onboarding-1.jpg'),
     title: 'Fast Delivery',
     subtitle: 'Pharma at Your Doorstep',
     description:
@@ -34,7 +34,7 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '2',
-    image: require('../assets/images/onboarding-2.png'),
+    image: require('../assets/images/onboarding-2.jpg'),
     title: 'Smart Sales',
     subtitle: 'Manage Stores Effortlessly',
     description:
@@ -42,7 +42,7 @@ const slides: OnboardingSlide[] = [
   },
   {
     id: '3',
-    image: require('../assets/images/onboarding-3.png'),
+    image: require('../assets/images/onboarding-3.jpg'),
     title: 'Live Analytics',
     subtitle: 'Data-Driven Decisions',
     description:
