@@ -10,6 +10,7 @@ import {
   Dimensions,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -222,7 +223,7 @@ export default function StoreInfoScreen() {
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {shopOrders.map((item) => {
+        {[...shopOrders].sort((a, b) => b.id - a.id).map((item) => {
           const statusMeta = getStatusMeta(item.status);
           const invoiceNo = item.manual_invoice_no || item.invoice_no;
           return (
@@ -453,6 +454,30 @@ export default function StoreInfoScreen() {
                           date: item.date,
                         },
                       });
+                    } else {
+                      const idStr = item.id.toString();
+                      const realId = idStr.includes("_")
+                        ? idStr.split("_")[1]
+                        : idStr;
+                      const orderObj = item.raw?.order || {};
+                      router.push({
+                        pathname: "/pages/paymentDetails",
+                        params: {
+                          transactionId: realId,
+                          referenceNo: item.reference_no || "",
+                          paymentDate: item.date,
+                          amount: item.amount.toString(),
+                          paymentMode: item.payment_mode || item.raw?.payment_mode || "Cash",
+                          storeName: storeName,
+                          orderNo: orderObj.order_no || item.raw?.order_no || "",
+                          orderAmount: orderObj.total_amount || item.raw?.order_amount || "0",
+                          paidAmount: orderObj.paid_amount || item.raw?.paid_amount || "0",
+                          dueAmount: orderObj.due_amount || item.raw?.due_amount || "0",
+                          orderStatus: orderObj.status || item.raw?.order_status || "",
+                          paymentStatus: orderObj.payment_status || item.raw?.payment_status || "",
+                          manual_invoice_no: orderObj.manual_invoice_no || item.raw?.manual_invoice_no || "",
+                        },
+                      });
                     }
                   }}
                 >
@@ -572,7 +597,8 @@ export default function StoreInfoScreen() {
               Store Details
             </Text>
 
-            <View className="flex-row flex-wrap -mx-1.5">
+            {/* Row 1: Name, Category, Contact in same line */}
+            <View className="flex-row -mx-1 mb-3">
               {[
                 {
                   label: "Store Name",
@@ -594,47 +620,57 @@ export default function StoreInfoScreen() {
                   icon: "phone" as const,
                   bg: "#DCFCE7",
                   color: "#16A34A",
+                  onPress: storeContact ? () => Linking.openURL(`tel:${storeContact}`) : undefined,
                 },
               ].map((detail) => (
-                <View key={detail.label} className="w-1/2 px-1.5 mb-3">
-                  <View className="bg-gray-50 rounded-xl p-3 min-h-[92px] border border-gray-100">
+                <TouchableOpacity
+                  key={detail.label}
+                  className="flex-1 px-1"
+                  activeOpacity={detail.onPress ? 0.6 : 1}
+                  onPress={detail.onPress}
+                  disabled={!detail.onPress}
+                >
+                  <View className="bg-gray-50 rounded-xl p-2.5 min-h-[88px] border border-gray-100">
                     <View
-                      className="w-9 h-9 rounded-full items-center justify-center mb-2"
+                      className="w-8 h-8 rounded-full items-center justify-center mb-1.5"
                       style={{ backgroundColor: detail.bg }}
                     >
                       <MaterialIcons
                         name={detail.icon}
-                        size={18}
+                        size={16}
                         color={detail.color}
                       />
                     </View>
-                    <Text className="text-[11px] text-gray-400">
+                    <Text className="text-[10px] text-gray-400">
                       {detail.label}
                     </Text>
                     <Text
-                      className="text-[14px] font-semibold text-gray-800"
+                      className="text-[12px] font-semibold text-gray-800"
                       numberOfLines={2}
                     >
                       {detail.value}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
+            </View>
 
-              <View className="w-full px-1.5">
-                <View className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                  <View className="w-9 h-9 rounded-full bg-[#FEE2E2] items-center justify-center mb-2">
+            {/* Row 2: Address (full width) */}
+            <View className="px-0">
+              <View className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                <View className="flex-row items-center mb-1.5">
+                  <View className="w-8 h-8 rounded-full bg-[#FEE2E2] items-center justify-center mr-2">
                     <MaterialIcons
                       name="location-on"
-                      size={18}
+                      size={16}
                       color="#DC2626"
                     />
                   </View>
-                  <Text className="text-[11px] text-gray-400">Address</Text>
-                  <Text className="text-[14px] font-semibold text-gray-800">
-                    {storeAddress}
-                  </Text>
+                  <Text className="text-[10px] text-gray-400">Address</Text>
                 </View>
+                <Text className="text-[13px] font-semibold text-gray-800">
+                  {storeAddress}
+                </Text>
               </View>
             </View>
           </View>
@@ -673,7 +709,14 @@ export default function StoreInfoScreen() {
             </View>
           </View>
           <View className="flex-row gap-3">
-            <TouchableOpacity className="w-9 h-9 bg-white/20 rounded-full items-center justify-center">
+            <TouchableOpacity
+              className="w-9 h-9 bg-white/20 rounded-full items-center justify-center"
+              onPress={() => {
+                if (storeContact) {
+                  Linking.openURL(`tel:${storeContact}`);
+                }
+              }}
+            >
               <Ionicons name="call" size={18} color="white" />
             </TouchableOpacity>
           </View>

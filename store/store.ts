@@ -190,7 +190,7 @@ export const useStoreDetailStore = create<StoreDetailStore>((set) => ({
   shopDetail: null,
   isLoading: false,
   fetchShopDetail: async (shopId) => {
-    set({ isLoading: true });
+    set({ isLoading: true, shopDetail: null });
     try {
       const response = await API.get(`/shops/${shopId}`);
       set({ shopDetail: response.data });
@@ -235,9 +235,21 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   fetchAllOrders: async () => {
     set({ isLoading: true });
     try {
-      const response = await API.get('/orders');
+      const response = await API.get(`/orders?_t=${Date.now()}`);
       const data = response.data.data || response.data;
-      set({ allOrders: Array.isArray(data) ? data : (data.data || []) });
+      const fetchedOrders = Array.isArray(data) ? data : (data.data || []);
+      
+      // Merge with existing to prevent wiping out newly created orders
+      const currentOrders = get().allOrders;
+      const mergedOrders = [...fetchedOrders];
+      
+      currentOrders.forEach(localOrder => {
+        if (!mergedOrders.some(o => o.id === localOrder.id)) {
+          mergedOrders.push(localOrder);
+        }
+      });
+      
+      set({ allOrders: mergedOrders });
     } catch (error) {
       console.error("Failed to fetch orders:", error);
     } finally {
@@ -245,11 +257,24 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     }
   },
   fetchShopOrders: async (shopId) => {
-    set({ isLoading: true });
+    // Retain only local orders specifically meant for this shop, effectively clearing old shops' data immediately
+    set({ isLoading: true, shopOrders: get().shopOrders.filter(o => o.shop_id == shopId) });
     try {
-      const response = await API.get(`/orders/shop-orders/${shopId}`);
+      const response = await API.get(`/orders/shop-orders/${shopId}?_t=${Date.now()}`);
       const data = response.data.data || response.data;
-      set({ shopOrders: Array.isArray(data) ? data : [] });
+      const fetchedOrders = Array.isArray(data) ? data : [];
+      
+      const currentOrders = get().shopOrders;
+      const mergedOrders = [...fetchedOrders];
+      
+      currentOrders.forEach(localOrder => {
+        // Only merge if the local order belongs to the shop we are currently fetching
+        if (localOrder.shop_id == shopId && !mergedOrders.some(o => o.id === localOrder.id)) {
+          mergedOrders.push(localOrder);
+        }
+      });
+      
+      set({ shopOrders: mergedOrders });
     } catch (error) {
       console.error("Failed to fetch shop orders:", error);
     } finally {
@@ -260,7 +285,26 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await API.post('/orders', payload);
+      
+      // Attempt to immediately inject the new order into the local list
+      const newOrder = response.data?.order || response.data?.data || response.data;
+      if (newOrder && newOrder.id) {
+        const currentOrders = get().allOrders;
+        // Prepend only if it doesn't already exist
+        if (!currentOrders.some(o => o.id === newOrder.id)) {
+          set({ allOrders: [newOrder, ...currentOrders] });
+        }
+        
+        // Also inject into shopOrders if it matches the current shop
+        const currentShopOrders = get().shopOrders;
+        if (!currentShopOrders.some(o => o.id === newOrder.id)) {
+          // Verify it's the correct shop or just safely prepend it assuming the user is looking at the shop they just ordered from
+          set({ shopOrders: [newOrder, ...currentShopOrders] });
+        }
+      }
+
       await get().fetchAllOrders();
+      await get().fetchShopOrders(payload.shop_id);
       return response.data;
     } finally {
       set({ isLoading: false });
@@ -344,7 +388,7 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
   isLoading: false,
   isSubmitting: false,
   fetchLedger: async (shopId) => {
-    set({ isLoading: true });
+    set({ isLoading: true, ledger: [], summary: null });
     try {
       const response = await API.get(`/orders/shop/${shopId}/ledger`);
 
@@ -360,7 +404,9 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
         description: t.description || (t.type === 'invoice' ? `Order ${t.reference}` : 'Payment'),
         balance: t.status || '-', // API doesn't provide running balance, use status instead
         date: t.date || t.timestamp,
-        reference_no: t.reference
+        reference_no: t.reference_no || t.reference,
+        payment_mode: t.payment_mode,
+        raw: t
       }));
 
       // Ensure they are sorted by date descending (though API likely does this)
@@ -401,9 +447,30 @@ export const useAttendanceStore = create<AttendanceStore>((set) => ({
   setIsWorking: async (value: boolean) => {
     set({ isWorking: value });
     await AsyncStorage.setItem('isWorking', value ? 'true' : 'false');
+    if (value) {
+      await AsyncStorage.setItem('checkInDate', new Date().toDateString());
+    } else {
+      await AsyncStorage.removeItem('checkInDate');
+    }
   },
   loadAttendanceState: async () => {
     const val = await AsyncStorage.getItem('isWorking');
+    const checkInDate = await AsyncStorage.getItem('checkInDate');
+    
+    if (val === 'true') {
+      const now = new Date();
+      const isPast8PM = now.getHours() >= 20;
+      const isDifferentDay = checkInDate && checkInDate !== now.toDateString();
+      
+      // Auto-logout if it's past 8 PM or it's a new day
+      if (isPast8PM || isDifferentDay) {
+        set({ isWorking: false });
+        await AsyncStorage.setItem('isWorking', 'false');
+        await AsyncStorage.removeItem('checkInDate');
+        return;
+      }
+    }
+    
     set({ isWorking: val === 'true' });
   },
 }));
@@ -422,8 +489,16 @@ export interface PaymentHistoryItem {
     id: number;
     order_no: string;
     total_amount: string;
+    paid_amount?: string;
+    due_amount?: string;
+    status?: string;
+    payment_status?: string;
     shop?: {
+      id?: number;
       shop_name: string;
+      owner_name?: string;
+      contact?: string;
+      address?: string;
     };
   };
 }
@@ -457,6 +532,7 @@ export interface DashboardStats {
   today_collection: number;
   today_visits: number;
   monthly_sales: number;
+  today_new_stores?: number;
 }
 
 export interface ActiveStatus {
@@ -559,7 +635,7 @@ interface NotificationStore {
   notifications: NotificationItem[];
   isLoading: boolean;
   fetchNotifications: () => Promise<void>;
-  markAsRead: (id: string) => Promise<void>;
+  markAsRead: (id: number) => Promise<void>;
 }
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({

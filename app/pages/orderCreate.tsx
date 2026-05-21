@@ -1295,6 +1295,12 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     marginTop: scale(2),
   },
+  itemRowQty: {
+    fontSize: moderateScale(13),
+    fontWeight: "bold",
+    color: "#4C73B6",
+    marginLeft: scale(10),
+  },
   bottomNav: {
     backgroundColor: "white",
     borderTopWidth: 1,

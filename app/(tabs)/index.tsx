@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -17,6 +17,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -27,6 +29,7 @@ import {
   useShopStore,
 } from "../../store/store";
 import API from "../../utils/api";
+import LottieView from "lottie-react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -66,14 +69,72 @@ export default function HomeScreen() {
   const { shops, fetchShops } = useShopStore();
   const { routes, fetchRoutes } = useRouteStore();
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Custom popup modal states
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [popupTitle, setPopupTitle] = useState("");
+  const [popupMessage, setPopupMessage] = useState("");
+  const [popupType, setPopupType] = useState<"confirm" | "info">("info");
+  const [popupOnConfirm, setPopupOnConfirm] = useState<(() => void) | null>(
+    null,
+  );
+
+  // Show custom popup instead of Alert.alert
+  const showPopup = (
+    title: string,
+    message: string,
+    type: "confirm" | "info" = "info",
+    onConfirm?: () => void,
+  ) => {
+    setPopupTitle(title);
+    setPopupMessage(message);
+    setPopupType(type);
+    setPopupOnConfirm(() => onConfirm || null);
+    setPopupVisible(true);
+  };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchShops(),
+        fetchRoutes(),
+        fetchDashboardData(),
+        fetchNotifications()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchShops, fetchRoutes, fetchDashboardData, fetchNotifications]);
+
   useEffect(() => {
     fetchShops();
     fetchRoutes();
     fetchDashboardData();
-    fetchNotifications();
     // Restore attendance state from storage
     loadAttendanceState();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchNotifications();
+      
+      // Check 8 PM auto-logout rule when screen is focused
+      if (isWorking) {
+        const now = new Date();
+        if (now.getHours() >= 20) {
+          setIsWorking(false);
+          showPopup(
+            "Auto Logout",
+            "Your shift has been automatically ended because it is past 8:00 PM.",
+            "info"
+          );
+        }
+        loadAttendanceState();
+      }
+    }, [isWorking])
+  );
 
   // activeStatus sync removed to prevent the backend from incorrectly resetting local attendance state on app reload
 
@@ -120,28 +181,6 @@ export default function HomeScreen() {
     }
   }, [isWorking]);
 
-  // Custom popup modal states
-  const [popupVisible, setPopupVisible] = useState(false);
-  const [popupTitle, setPopupTitle] = useState("");
-  const [popupMessage, setPopupMessage] = useState("");
-  const [popupType, setPopupType] = useState<"confirm" | "info">("info");
-  const [popupOnConfirm, setPopupOnConfirm] = useState<(() => void) | null>(
-    null,
-  );
-
-  // Show custom popup instead of Alert.alert
-  const showPopup = (
-    title: string,
-    message: string,
-    type: "confirm" | "info" = "info",
-    onConfirm?: () => void,
-  ) => {
-    setPopupTitle(title);
-    setPopupMessage(message);
-    setPopupType(type);
-    setPopupOnConfirm(() => onConfirm || null);
-    setPopupVisible(true);
-  };
 
   const handlePowerPress = () => {
     console.log("Power button pressed, isWorking:", isWorking);
@@ -369,7 +408,11 @@ export default function HomeScreen() {
                   color="white"
                 />
                 {unreadCount > 0 && (
-                  <View className="absolute right-0.5 top-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#1A3F75]" />
+                  <View className="absolute -right-1.5 -top-1.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border border-[#19212C] items-center justify-center px-1 shadow-sm">
+                    <Text className="text-white text-[9px] font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
@@ -589,7 +632,27 @@ export default function HomeScreen() {
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 120 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="transparent"
+                colors={["transparent"]}
+                style={{ backgroundColor: "transparent" }}
+                progressBackgroundColor="transparent"
+              />
+            }
           >
+            {refreshing && (
+              <View className="items-center justify-center py-4">
+                <LottieView
+                  source={require("../../assets/animation/pill-optimized.json")}
+                  autoPlay
+                  loop
+                  style={{ width: 80, height: 80 }}
+                />
+              </View>
+            )}
             {/* Assigned Route Card */}
             {routes.length > 0 && (
               <TouchableOpacity
@@ -608,11 +671,11 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[14px] font-semibold text-[#64748B] mb-1">
+                  <Text className="text-[13px] font-semibold text-[#64748B] mb-1">
                     {routes.length > 1 ? "Assigned Routes" : "Assigned Route"}
                   </Text>
                   <View className="flex-row items-center flex-wrap">
-                    <Text className="text-[18px] font-extrabold text-[#1E293B]">
+                    <Text className="text-[15px] font-extrabold text-[#1E293B]">
                       {routes[0].name}
                     </Text>
                     {routes.length > 1 && (

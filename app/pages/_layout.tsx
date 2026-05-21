@@ -6,6 +6,7 @@ export default function PagesLayout() {
       <Stack.Screen name="storeInfo" />
       <Stack.Screen name="orderCreate" />
       <Stack.Screen name="orderDetails" />
+      <Stack.Screen name="paymentDetails" />
       <Stack.Screen name="support" />
       <Stack.Screen name="notifucation" />
       <Stack.Screen name="payment" />

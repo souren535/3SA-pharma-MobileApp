@@ -49,7 +49,20 @@ const formatDisplayDate = (dateStr: string) => {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
     return dateStr;
@@ -78,6 +91,7 @@ export default function OrdersScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      setSelectedDate(new Date());
       fetchAllOrders();
       return () => {
         setShowSearch(false);
@@ -110,8 +124,8 @@ export default function OrdersScreen() {
     selectedDate.getFullYear(),
   );
 
-  const filteredOrders = (Array.isArray(allOrders) ? allOrders : []).filter(
-    (order) => {
+  const filteredOrders = (Array.isArray(allOrders) ? allOrders : [])
+    .filter((order) => {
       const orderDate = new Date(order.billing_date || order.created_at);
       const isSameDate =
         orderDate.getDate() === selectedDate.getDate() &&
@@ -126,8 +140,8 @@ export default function OrdersScreen() {
           .includes(searchQuery.toLowerCase());
 
       return isSameDate && matchesSearch;
-    },
-  );
+    })
+    .sort((a, b) => b.id - a.id);
 
   return (
     <View style={styles.container}>
@@ -283,19 +297,30 @@ export default function OrdersScreen() {
                 colors={["transparent"]}
                 style={{ backgroundColor: "transparent" }}
                 progressBackgroundColor="transparent"
-                progressViewOffset={-5000}
               />
             }
           >
+            {refreshing && (
+              <View className="items-center justify-center py-4">
+                <LottieView
+                  source={require("../../assets/animation/pill-optimized.json")}
+                  autoPlay
+                  loop
+                  style={{ width: 80, height: 80 }}
+                />
+              </View>
+            )}
             {isLoading ? (
               <View className="flex-1 items-center justify-center py-20">
                 <LottieView
-                  source={require('../../assets/animation/pill-optimized.json')}
+                  source={require("../../assets/animation/pill-optimized.json")}
                   autoPlay
                   loop
                   style={{ width: 150, height: 150 }}
                 />
-                <Text className="text-gray-500 mt-4 font-medium tracking-wide">Loading Orders...</Text>
+                <Text className="text-gray-500 mt-4 font-medium tracking-wide">
+                  Loading Orders...
+                </Text>
               </View>
             ) : filteredOrders.length === 0 ? (
               <Text className="text-center text-gray-500 mt-10">
@@ -326,7 +351,11 @@ export default function OrdersScreen() {
                     <View className="flex-row items-center flex-1 pr-2">
                       {/* Left Document Icon */}
                       <View className="w-11 h-11 rounded-xl items-center justify-center bg-[#F3F6F8]">
-                        <Ionicons name="document-text" size={24} color="#4C73B6" />
+                        <Ionicons
+                          name="document-text"
+                          size={24}
+                          color="#4C73B6"
+                        />
                       </View>
 
                       {/* Middle Info Column */}
@@ -357,27 +386,36 @@ export default function OrdersScreen() {
                               <View className="w-8 items-center" />
                             </View>
                             <Text className="text-xs text-gray-500 mt-1">
-                              Billing Date : {formatDisplayDate(item.billing_date || item.created_at)}
+                              Billing Date :{" "}
+                              {formatDisplayDate(
+                                item.billing_date || item.created_at,
+                              )}
                             </Text>
                           </View>
                         ) : (
                           <View className="flex-row items-center justify-between mt-1">
-                            <Text className="text-xs text-gray-500 mr-4" numberOfLines={1}>
-                              Billing Date : {formatDisplayDate(item.billing_date || item.created_at)}
+                            <Text
+                              className="text-xs text-gray-500 mr-4"
+                              numberOfLines={1}
+                            >
+                              Billing Date :{" "}
+                              {formatDisplayDate(
+                                item.billing_date || item.created_at,
+                              )}
                             </Text>
-                            <View className="flex-1 items-start">
-                              <Text className="text-[15px] font-black text-[#FF4A4A]">
-                                Rs. {item.total_amount}
-                              </Text>
-                            </View>
                             <View className="w-8 items-center" />
                           </View>
                         )}
 
-                        {/* Store name at the bottom of the card */}
-                        <Text className="text-xs text-gray-400 font-semibold mt-1" numberOfLines={1}>
-                          Store : {item.shop?.shop_name || "Unknown Store"}
-                        </Text>
+                        {/* Store name at the bottom-right of the card */}
+                        <View className="bg-gray-100 py-1 px-2 rounded-lg self-end mt-1.5">
+                          <Text
+                            className="text-[10px] text-gray-500 font-semibold"
+                            numberOfLines={1}
+                          >
+                            {item.shop?.shop_name || "Unknown Store"}
+                          </Text>
+                        </View>
                       </View>
                     </View>
 

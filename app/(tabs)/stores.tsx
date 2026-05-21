@@ -219,10 +219,19 @@ export default function StoresScreen() {
             colors={["transparent"]}
             style={{ backgroundColor: "transparent" }}
             progressBackgroundColor="transparent"
-            progressViewOffset={-5000}
           />
         }
       >
+        {refreshing && (
+          <View className="items-center justify-center py-4">
+            <LottieView
+              source={require('../../assets/animation/pill-optimized.json')}
+              autoPlay
+              loop
+              style={{ width: 80, height: 80 }}
+            />
+          </View>
+        )}
         {isLoading ? (
           <View className="flex-1 items-center justify-center py-20">
             <LottieView

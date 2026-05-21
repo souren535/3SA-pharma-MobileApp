@@ -147,12 +147,21 @@ export default function PaymentScreen() {
       dateObj: dateObj, // Keep reference for filtering
       rawYear: rawYear,
       rawMonth: rawMonth,
+      rawPaymentDate: rawDateStr,
       desc: `${item.payment_mode || "Cash"} Payment ${item.reference_no ? `(${item.reference_no})` : ""}`,
       store: storeName,
       amountNum: amtNum,
       amount: `+ Rs. ${amtNum.toFixed(2)}`,
       status: "Success",
       orderNo: orderNo,
+      referenceNo: item.reference_no || "",
+      paymentMode: item.payment_mode || "Cash",
+      // Order details
+      orderAmount: item.order?.total_amount || "0",
+      paidAmount: item.order?.paid_amount || "0",
+      dueAmount: item.order?.due_amount || "0",
+      orderStatus: item.order?.status || "-",
+      paymentStatus: item.order?.payment_status || "-",
     };
   });
 
@@ -342,7 +351,7 @@ export default function PaymentScreen() {
                         Total Collected
                       </Text>
                       <Text className="text-white text-2xl font-bold mt-1">
-                        Rs.{" "}
+                        ₹
                         {totalCollected.toLocaleString("en-IN", {
                           maximumFractionDigits: 0,
                         })}
@@ -358,7 +367,7 @@ export default function PaymentScreen() {
                         Last Payment
                       </Text>
                       <Text className="text-white font-bold text-xs">
-                        Rs. {lastPaymentAmount.toFixed(2)}
+                        ₹{lastPaymentAmount.toFixed(2)}
                       </Text>
                     </View>
                     <View className="items-end">
@@ -395,7 +404,7 @@ export default function PaymentScreen() {
                   Avg Collection
                 </Text>
                 <Text className="text-gray-800 text-base font-bold mt-1">
-                  Rs. {avgCollection.toFixed(0)}
+                  ₹{avgCollection.toFixed(0)}
                 </Text>
               </View>
             </View>
@@ -627,16 +636,20 @@ export default function PaymentScreen() {
                     className="bg-white mx-4 mb-3 p-4 rounded-xl shadow-sm flex-row items-center border border-gray-50"
                     onPress={() =>
                       router.push({
-                        pathname: "/pages/orderDetails",
+                        pathname: "/pages/paymentDetails",
                         params: {
-                          id: item.id,
-                          type: item.type,
-                          date: item.date,
-                          desc: item.desc,
-                          store: item.store,
-                          amount: item.amount,
+                          transactionId: item.id.toString(),
+                          referenceNo: item.referenceNo,
+                          paymentDate: item.rawPaymentDate,
+                          amount: item.amountNum.toString(),
+                          paymentMode: item.paymentMode,
+                          storeName: item.store,
                           orderNo: item.orderNo,
-                          isOrder: "false",
+                          orderAmount: item.orderAmount,
+                          paidAmount: item.paidAmount,
+                          dueAmount: item.dueAmount,
+                          orderStatus: item.orderStatus,
+                          paymentStatus: item.paymentStatus,
                         },
                       })
                     }

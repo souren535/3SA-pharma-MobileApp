@@ -268,7 +268,7 @@ export default function CreateStoreScreen() {
       if (!result.canceled) {
         // MUST process sequentially on Android to prevent expo-image-manipulator
         // native module from crashing or returning corrupted URIs during concurrent execution
-        const processedUris = [];
+        const processedUris: string[] = [];
         for (const asset of result.assets) {
           const processedUri = await processImage(asset.uri);
           processedUris.push(processedUri);
