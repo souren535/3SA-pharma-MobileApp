@@ -27,6 +27,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   setLoading: (isLoading: boolean) => set({ isLoading }),
   reset: () => set({ user: null, token: null, isLoading: false, isAuthenticated: false }),
   login: async (email, password) => {
+    // Clear any leftover attendance state from a previous user/session
+    await AsyncStorage.removeItem("isWorking");
+    await AsyncStorage.removeItem("checkInDate");
+    await AsyncStorage.removeItem("attendanceLogoutDate");
+    useAttendanceStore.setState({ isWorking: false, attendanceLoggedOutToday: false });
+
     const data = await authService.login(email, password);
     await AsyncStorage.setItem("token", data.access_token);
     if (data.refresh_token) {
@@ -44,6 +50,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     await authService.logout();
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem("refresh_token");
+    // Clear attendance state so new salesman starts fresh
+    await AsyncStorage.removeItem("isWorking");
+    await AsyncStorage.removeItem("checkInDate");
+    await AsyncStorage.removeItem("attendanceLogoutDate");
+    useAttendanceStore.setState({ isWorking: false, attendanceLoggedOutToday: false });
     get().reset();
   },
   checkAuth: async () => {
@@ -238,17 +249,17 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       const response = await API.get(`/orders?_t=${Date.now()}`);
       const data = response.data.data || response.data;
       const fetchedOrders = Array.isArray(data) ? data : (data.data || []);
-      
+
       // Merge with existing to prevent wiping out newly created orders
       const currentOrders = get().allOrders;
       const mergedOrders = [...fetchedOrders];
-      
+
       currentOrders.forEach(localOrder => {
         if (!mergedOrders.some(o => o.id === localOrder.id)) {
           mergedOrders.push(localOrder);
         }
       });
-      
+
       set({ allOrders: mergedOrders });
     } catch (error) {
       console.error("Failed to fetch orders:", error);
@@ -263,17 +274,17 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       const response = await API.get(`/orders/shop-orders/${shopId}?_t=${Date.now()}`);
       const data = response.data.data || response.data;
       const fetchedOrders = Array.isArray(data) ? data : [];
-      
+
       const currentOrders = get().shopOrders;
       const mergedOrders = [...fetchedOrders];
-      
+
       currentOrders.forEach(localOrder => {
         // Only merge if the local order belongs to the shop we are currently fetching
         if (localOrder.shop_id == shopId && !mergedOrders.some(o => o.id === localOrder.id)) {
           mergedOrders.push(localOrder);
         }
       });
-      
+
       set({ shopOrders: mergedOrders });
     } catch (error) {
       console.error("Failed to fetch shop orders:", error);
@@ -285,7 +296,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await API.post('/orders', payload);
-      
+
       // Attempt to immediately inject the new order into the local list
       const newOrder = response.data?.order || response.data?.data || response.data;
       if (newOrder && newOrder.id) {
@@ -294,7 +305,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         if (!currentOrders.some(o => o.id === newOrder.id)) {
           set({ allOrders: [newOrder, ...currentOrders] });
         }
-        
+
         // Also inject into shopOrders if it matches the current shop
         const currentShopOrders = get().shopOrders;
         if (!currentShopOrders.some(o => o.id === newOrder.id)) {
@@ -438,40 +449,100 @@ export const useLedgerStore = create<LedgerStore>((set, get) => ({
 // ─── Attendance Store ────────────────────────────────
 interface AttendanceStore {
   isWorking: boolean;
+  attendanceLoggedOutToday: boolean;
   setIsWorking: (value: boolean) => Promise<void>;
+  syncAttendanceState: (activeStatus: any) => Promise<void>;
   loadAttendanceState: () => Promise<void>;
 }
 
 export const useAttendanceStore = create<AttendanceStore>((set) => ({
   isWorking: false,
+  attendanceLoggedOutToday: false,
   setIsWorking: async (value: boolean) => {
     set({ isWorking: value });
     await AsyncStorage.setItem('isWorking', value ? 'true' : 'false');
     if (value) {
       await AsyncStorage.setItem('checkInDate', new Date().toDateString());
+      // Clear any previous logout date since user is now working
+      await AsyncStorage.removeItem('attendanceLogoutDate');
+      set({ attendanceLoggedOutToday: false });
     } else {
       await AsyncStorage.removeItem('checkInDate');
+      // Record that user logged out today to prevent re-attendance
+      await AsyncStorage.setItem('attendanceLogoutDate', new Date().toDateString());
+      set({ attendanceLoggedOutToday: true });
+    }
+  },
+  syncAttendanceState: async (activeStatus: any) => {
+    // This is purely for auto-healing from the backend without triggering the manual lockout logic
+    const isActive = activeStatus?.is_active ?? false;
+    const hasCheckedOutToday = !!activeStatus?.check_out_time;
+
+    set({ 
+      isWorking: isActive,
+      attendanceLoggedOutToday: hasCheckedOutToday && !isActive
+    });
+
+    await AsyncStorage.setItem('isWorking', isActive ? 'true' : 'false');
+    if (isActive) {
+      await AsyncStorage.setItem('checkInDate', new Date().toDateString());
+      await AsyncStorage.removeItem('attendanceLogoutDate');
+    } else {
+      await AsyncStorage.removeItem('checkInDate');
+      if (hasCheckedOutToday) {
+        await AsyncStorage.setItem('attendanceLogoutDate', new Date().toDateString());
+      } else {
+        await AsyncStorage.removeItem('attendanceLogoutDate');
+      }
     }
   },
   loadAttendanceState: async () => {
     const val = await AsyncStorage.getItem('isWorking');
     const checkInDate = await AsyncStorage.getItem('checkInDate');
-    
+    const logoutDate = await AsyncStorage.getItem('attendanceLogoutDate');
+    const today = new Date().toDateString();
+
+    // Check if user already logged out today (can't re-attend)
+    const loggedOutToday = logoutDate === today;
+
     if (val === 'true') {
       const now = new Date();
       const isPast8PM = now.getHours() >= 20;
       const isDifferentDay = checkInDate && checkInDate !== now.toDateString();
-      
+
       // Auto-logout if it's past 8 PM or it's a new day
       if (isPast8PM || isDifferentDay) {
-        set({ isWorking: false });
+        set({ isWorking: false, attendanceLoggedOutToday: loggedOutToday });
         await AsyncStorage.setItem('isWorking', 'false');
         await AsyncStorage.removeItem('checkInDate');
+        if (!loggedOutToday) {
+          await AsyncStorage.setItem('attendanceLogoutDate', today);
+          set({ attendanceLoggedOutToday: true });
+        }
+
+        // Attempt backend logout to stay in sync
+        try {
+          const formData = new FormData();
+          formData.append("last_shop_id", "1");
+          formData.append("latitude", "0");
+          formData.append("longitude", "0");
+          API.post("/attendance/logout", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          }).catch(err => console.log("Auto-logout API failed:", err));
+        } catch (e) {
+          console.log(e);
+        }
         return;
       }
     }
-    
-    set({ isWorking: val === 'true' });
+
+    // If logout date is from a previous day, clear it
+    if (logoutDate && logoutDate !== today) {
+      await AsyncStorage.removeItem('attendanceLogoutDate');
+      set({ isWorking: val === 'true', attendanceLoggedOutToday: false });
+    } else {
+      set({ isWorking: val === 'true', attendanceLoggedOutToday: loggedOutToday });
+    }
   },
 }));
 
@@ -532,12 +603,15 @@ export interface DashboardStats {
   today_collection: number;
   today_visits: number;
   monthly_sales: number;
-  today_new_stores?: number;
+  today_created_stores?: number;
 }
 
 export interface ActiveStatus {
   is_active: boolean;
+  status: string;
   check_in_time: string | null;
+  check_out_time: string | null;
+  attendance?: any;
 }
 
 interface DashboardStore {

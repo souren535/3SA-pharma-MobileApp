@@ -19,7 +19,16 @@ export default function NotificationsScreen() {
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
-    // You could navigate to specific details here if needed
+    router.push({
+      pathname: '/pages/notificationDetail',
+      params: {
+        title: notification.title || 'Notification',
+        message: notification.message || '',
+        targetType: notification.target_type || '',
+        createdAt: notification.created_at || '',
+        isRead: notification.is_read ? 'true' : 'false',
+      },
+    });
   };
 
   return (

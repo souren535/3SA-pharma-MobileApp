@@ -66,6 +66,8 @@ API.interceptors.response.use(
         await AsyncStorage.removeItem("token");
         await AsyncStorage.removeItem("refresh_token");
         await AsyncStorage.removeItem("isWorking");
+        await AsyncStorage.removeItem("checkInDate");
+        await AsyncStorage.removeItem("attendanceLogoutDate");
         // Navigate to login
         try { router.replace("/(auth)"); } catch {}
         return Promise.reject(refreshError);

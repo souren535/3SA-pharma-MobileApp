@@ -297,6 +297,7 @@ export default function OrdersScreen() {
                 colors={["transparent"]}
                 style={{ backgroundColor: "transparent" }}
                 progressBackgroundColor="transparent"
+                progressViewOffset={-1000}
               />
             }
           >
@@ -310,7 +311,7 @@ export default function OrdersScreen() {
                 />
               </View>
             )}
-            {isLoading ? (
+            {isLoading && !refreshing ? (
               <View className="flex-1 items-center justify-center py-20">
                 <LottieView
                   source={require("../../assets/animation/pill-optimized.json")}

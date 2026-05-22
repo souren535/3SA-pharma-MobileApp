@@ -44,7 +44,7 @@ export default function HomeScreen() {
   });
 
   // Attendance states (global store)
-  const { isWorking, setIsWorking, loadAttendanceState } = useAttendanceStore();
+  const { isWorking, attendanceLoggedOutToday, setIsWorking, syncAttendanceState, loadAttendanceState } = useAttendanceStore();
   const { stats, unvisitedStores, activeStatus, fetchDashboardData } =
     useDashboardStore();
   const { notifications, fetchNotifications } = useNotificationStore();
@@ -119,12 +119,24 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       fetchNotifications();
-      
+
       // Check 8 PM auto-logout rule when screen is focused
       if (isWorking) {
         const now = new Date();
         if (now.getHours() >= 20) {
           setIsWorking(false);
+
+          // Attempt to log out on the backend as well so it's not left hanging
+          const fallbackShopId = shops.length > 0 ? String(shops[0].id) : "1";
+          const formData = new FormData();
+          formData.append("last_shop_id", fallbackShopId);
+          // Since it's an auto-logout, we might not have fresh location or selfie, so provide defaults
+          formData.append("latitude", "0");
+          formData.append("longitude", "0");
+          API.post("/attendance/logout", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          }).catch(err => console.log("Auto-logout API failed:", err));
+
           showPopup(
             "Auto Logout",
             "Your shift has been automatically ended because it is past 8:00 PM.",
@@ -136,7 +148,12 @@ export default function HomeScreen() {
     }, [isWorking])
   );
 
-  // activeStatus sync removed to prevent the backend from incorrectly resetting local attendance state on app reload
+  // Sync local attendance state with the backend's source of truth to self-heal any desyncs
+  React.useEffect(() => {
+    if (activeStatus) {
+      syncAttendanceState(activeStatus);
+    }
+  }, [activeStatus]);
 
   React.useEffect(() => {
     // Continuous pulse animation for the glowing ring
@@ -188,7 +205,7 @@ export default function HomeScreen() {
       // Stop work flow — open modal for logout selfie
       showPopup(
         "Stop Working",
-        "Are you sure you want to stop your work day?",
+        "Are you sure you want to stop your work day? You will not be able to re-attend today.",
         "confirm",
         async () => {
           console.log("Logout confirmed");
@@ -226,6 +243,15 @@ export default function HomeScreen() {
         },
       );
     } else {
+      // Block re-attendance if user already logged out today
+      if (attendanceLoggedOutToday) {
+        showPopup(
+          "Attendance Closed",
+          "You have already ended your work day for today. You can start again tomorrow.",
+          "info",
+        );
+        return;
+      }
       // Start work flow
       showPopup(
         "Start Working",
@@ -291,6 +317,11 @@ export default function HomeScreen() {
     try {
       const formData = new FormData();
       formData.append("face_image", {
+        uri: selfieUri,
+        type: "image/jpeg",
+        name: "selfie.jpg",
+      } as any);
+      formData.append("logout_face_image", {
         uri: selfieUri,
         type: "image/jpeg",
         name: "selfie.jpg",
@@ -366,6 +397,7 @@ export default function HomeScreen() {
   };
 
   // Dynamic colors based on work status
+  // GREEN when actively working, RED when not working (including logged-out-today)
   const powerIconColor = isWorking ? "#059669" : "#DC2626";
 
   return (
@@ -530,7 +562,7 @@ export default function HomeScreen() {
                   <MaterialIcons name="store" size={16} color="#2563EB" />
                 </View>
                 <Text className="text-[15px] font-extrabold text-[#1E40AF] flex-1" numberOfLines={1}>
-                  {stats?.today_new_stores || 0}
+                  {stats?.today_created_stores || 0}
                 </Text>
               </View>
               <Text className="text-[11px] font-semibold text-[#64748B]">
@@ -640,6 +672,7 @@ export default function HomeScreen() {
                 colors={["transparent"]}
                 style={{ backgroundColor: "transparent" }}
                 progressBackgroundColor="transparent"
+                progressViewOffset={-1000}
               />
             }
           >
@@ -792,7 +825,17 @@ export default function HomeScreen() {
             {/* Place New Order */}
             <TouchableOpacity
               className="flex-row items-center bg-white rounded-2xl p-4 mb-2.5 shadow-sm shadow-black/5"
-              onPress={() => router.push("/pages/orderCreate")}
+              onPress={() => {
+                if (!isWorking) {
+                  showPopup(
+                    "Action Required",
+                    "Please start your work day before placing an order.",
+                    "info",
+                  );
+                  return;
+                }
+                router.push("/pages/orderCreate");
+              }}
             >
               <View className="w-[42px] h-[42px] rounded-[13px] justify-center items-center mr-3.5 bg-[#DBEAFE]">
                 <MaterialIcons

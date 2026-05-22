@@ -18,6 +18,7 @@ import {
   useAttendanceStore,
   usePaymentStore,
   useDashboardStore,
+  IMAGE_BASE_URL,
 } from "@/store/store";
 
 const { width } = Dimensions.get("window");
@@ -37,15 +38,25 @@ export default function MenuScreen() {
     fetchDashboardData();
   }, []);
 
+  const getProfileImageSource = () => {
+    const img = user?.profile_image;
+    if (!img || img === "null" || img === "undefined" || img.trim() === "") {
+      return require("../../assets/images/avatar.png");
+    }
+    if (img.startsWith("http")) {
+      return { uri: img };
+    }
+    return { uri: `${IMAGE_BASE_URL}${img.startsWith("/") ? "" : "/"}${img}` };
+  };
+
   const MENU_ITEMS = [
     {
       id: "profile",
-      title: user?.name || "souren khan",
-      subtitle: `Senior Sales Executive (ID: #${user?.id || "SFA-2024-08"})`,
+      title: user?.name || "Salesman User",
+      subtitle: `${user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "Sales Executive"} (ID: #${user?.employee_id || user?.id || "N/A"})`,
       icon: "person-circle-outline",
       type: "profile",
-      image:
-        "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop",
+      image: getProfileImageSource(),
       route: "/pages/profile" as const,
     },
     {
@@ -95,10 +106,10 @@ export default function MenuScreen() {
           key={item.id}
           className="bg-white rounded-[32px] p-6 mb-4 shadow-sm border border-slate-100 flex-row items-center"
           activeOpacity={0.7}
-          // onPress={() => item.route && router.push(item.route)}
+          onPress={() => item.route && router.push(item.route)}
         >
           <Image
-            source={{ uri: item.image }}
+            source={item.image}
             className="w-16 h-16 rounded-full border-2 border-indigo-100"
             contentFit="cover"
             transition={500}

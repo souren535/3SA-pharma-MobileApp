@@ -9,6 +9,7 @@ export default function PagesLayout() {
       <Stack.Screen name="paymentDetails" />
       <Stack.Screen name="support" />
       <Stack.Screen name="notifucation" />
+      <Stack.Screen name="notificationDetail" />
       <Stack.Screen name="payment" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="assignedRoutes" />

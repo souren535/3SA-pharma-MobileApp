@@ -17,4 +17,6 @@ if (Array.isArray(config.resolver.blockList)) {
   config.resolver.blockList = customBlockList;
 }
 
+config.resolver.assetExts.push("avif");
+
 module.exports = withNativeWind(config, { input: "./global.css" });

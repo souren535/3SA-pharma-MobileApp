@@ -23,8 +23,10 @@ export const authService = {
     await AsyncStorage.removeItem("refresh_token");
   },
   getProfile: async () => {
-    const { data } = await API.get("/auth/profile");
-    return data;
+    const response = await API.get("/salesman/profile");
+    const data = response.data;
+    // Safely unwrap if the backend wraps the profile in a 'profile', 'user' or 'data' key
+    return data?.profile || data?.user || data?.data || data;
   },
   forgotPassword: async (email: string) => {
     const { data } = await API.post("/password/send-otp", { email });
@@ -38,6 +40,14 @@ export const authService = {
       password_confirmation: password,
     });
     return data;
+  },
+  updateProfileImage: async (formData: FormData) => {
+    const { data } = await API.post("/salesman/profile/image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data?.profile || data?.user || data?.data || data;
   },
 };
 

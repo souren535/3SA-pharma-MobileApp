@@ -13,18 +13,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useShopStore, useRouteStore } from '../../store/store';
 import { compressToWebP } from '../../utils/imageCompress';
 import { scale, moderateScale, verticalScale } from '../../utils/scale';
-
+import pincodeData from '../../india_pincode_data.json';
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 const SHOP_TYPES = ['Retail', 'Wholesaler'];
-
-const INDIAN_STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-  'Delhi', 'Jammu & Kashmir', 'Ladakh',
-];
 
 // ─── Input Component ──────────────────────────────────────────────────────────
 const InputField = ({
@@ -98,6 +89,8 @@ const DropdownField = ({ label, value, onPress, placeholder, required = false, d
   </View>
 );
 
+
+
 // ─── Review Item ──────────────────────────────────────────────────────────────
 const ReviewItem = ({ label, value }: { label: string; value: string }) => (
   <View style={{ paddingVertical: scale(10), borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
@@ -170,8 +163,8 @@ export default function CreateStoreScreen() {
   const [district, setDistrict] = useState('');
   const [pin, setPin] = useState('');
   const [state, setState] = useState('');
-  const [showStatePicker, setShowStatePicker] = useState(false);
   const [loadingPin, setLoadingPin] = useState(false);
+  const [pinNotFound, setPinNotFound] = useState(false);
   const [routeId, setRouteId] = useState('');
   const [areaId, setAreaId] = useState('');
   const [isManualArea, setIsManualArea] = useState(false);
@@ -210,6 +203,29 @@ export default function CreateStoreScreen() {
 
   const selectedRouteObj = routes.find(r => r.id.toString() === routeId);
 
+  const fetchPinDetails = async (pinCode: string) => {
+    try {
+      const allStates = (pincodeData as any).data;
+      for (const stateName in allStates) {
+        const districts = allStates[stateName].districts;
+        for (const districtName in districts) {
+          const pincodes = districts[districtName].pincodes;
+          const found = pincodes.find((p: any) => p.pincode === pinCode);
+          if (found) {
+            return {
+              state: stateName,
+              district: districtName,
+              city: found.block || districtName,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Local PIN lookup failed:", error);
+    }
+    return null;
+  };
+
   // ── PIN lookup ───────────────────────────────────────────────────────────────
   const handlePinChange = async (text: string) => {
     const pinCode = text.replace(/[^0-9]/g, '');
@@ -217,21 +233,25 @@ export default function CreateStoreScreen() {
     if (pinCode.length === 6) {
       setLoadingPin(true);
       try {
-        const response = await fetch(`https://api.postalpincode.in/pincode/${pinCode}`);
-        const data = await response.json();
-        if (data?.[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
-          const po = data[0].PostOffice[0];
-          setDistrict(po.District);
-          setState(po.State);
-          setCity(po.Block && po.Block !== 'NA' ? po.Block : po.District);
+        const details = await fetchPinDetails(pinCode);
+        if (details) {
+          setState(details.state);
+          setDistrict(details.district);
+          setCity(details.city);
+          setPinNotFound(false);
         } else {
-          showPopup('Error', 'Invalid PIN Code. Please enter a valid Indian PIN.');
+          setPinNotFound(true);
+          setState('');
+          setDistrict('');
+          setCity('');
         }
-      } catch {
-        // silently ignore PIN network errors
+      } catch (err) {
+        console.warn('PIN Lookup Error:', err);
       } finally {
         setLoadingPin(false);
       }
+    } else {
+      setPinNotFound(false);
     }
   };
 
@@ -324,6 +344,7 @@ export default function CreateStoreScreen() {
         if (!district.trim()) { showPopup('Required', 'Please enter the district.'); return false; }
         if (!pin.trim() || pin.length !== 6) { showPopup('Required', 'Please enter a valid 6-digit PIN code.'); return false; }
         if (!state) { showPopup('Required', 'Please select the state.'); return false; }
+        if (routes.length > 1 && !routeId) { showPopup('Required', 'Please select a route.'); return false; }
         if (isManualArea) {
           if (!areaName.trim()) { showPopup('Required', 'Please enter the area name.'); return false; }
         } else {
@@ -373,7 +394,7 @@ export default function CreateStoreScreen() {
       const apiKey = process.env.EXPO_PUBLIC_GST_API_KEY || 'e0f96d43aa26b0dd45a97409ace7a7a4';
       const url = `https://sheet.gstincheck.co.in/check/${apiKey}/${gstNumber}`;
       console.log('Validating GSTIN via URL:', url);
-      
+
       const response = await fetch(url);
       const resData = await response.json();
       console.log('GST API Response:', resData);
@@ -382,7 +403,7 @@ export default function CreateStoreScreen() {
         setGstStatus('success');
         const legalName = resData.data?.lgnm || resData.data?.tradeNam || '';
         const status = resData.data?.sts || 'Active';
-        
+
         let message = `GSTIN is valid and active.\n`;
         if (legalName) {
           message += `\nLegal Name: ${legalName}`;
@@ -390,7 +411,7 @@ export default function CreateStoreScreen() {
         if (status) {
           message += `\nStatus: ${status}`;
         }
-        
+
         // Auto-fill some fields if they are empty
         if (legalName && !shopName) {
           setShopName(legalName);
@@ -398,7 +419,7 @@ export default function CreateStoreScreen() {
         if (legalName && !ownerName) {
           setOwnerName(legalName);
         }
-        
+
         showPopup('GST Verified', message, true);
       } else {
         setGstStatus('error');
@@ -570,35 +591,56 @@ export default function CreateStoreScreen() {
     </>
   );
 
-  const renderStep2 = () => (
-    <>
-      <InputField
-        label="PIN Code" value={pin} onChangeText={handlePinChange}
-        placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6} loading={loadingPin}
-      />
-      <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required maxLength={200} />
-      <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" maxLength={200} />
-      <InputField label="City" value={city} onChangeText={setCity} placeholder="Enter city" required maxLength={50} />
-      <InputField label="District" value={district} onChangeText={setDistrict} placeholder="Enter district" required editable={pin.length !== 6} maxLength={50} />
-      <DropdownField label="State" value={state} onPress={() => setShowStatePicker(true)} placeholder="Select state" required disabled={pin.length === 6} />
-      {isManualArea ? (
+  const renderStep2 = () => {
+    return (
+      <>
         <InputField
-          label="Area" value={areaName} onChangeText={setAreaName} placeholder="Enter area name" required
-          rightElement={
-            <TouchableOpacity onPress={() => { setIsManualArea(false); setAreaName(''); }}>
-              <Text style={{ color: '#1A3F75', fontSize: 10, fontWeight: '700', marginRight: 8 }}>SELECT LIST</Text>
-            </TouchableOpacity>
-          }
+          label="PIN Code" value={pin} onChangeText={handlePinChange}
+          placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6} loading={loadingPin}
         />
-      ) : (
-        <DropdownField
-          label="Area"
-          value={selectedRouteObj?.areas?.find((a: any) => a.id.toString() === areaId)?.name || ''}
-          onPress={() => setShowAreaPicker(true)} placeholder="Select area" required disabled={!routeId}
+        <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required maxLength={200} />
+        <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" maxLength={200} />
+
+        <InputField
+          label="State" value={state} onChangeText={setState} editable={pinNotFound} placeholder={pinNotFound ? "Enter State" : "Auto-populated from PIN"} required
         />
-      )}
-    </>
-  );
+
+        <InputField
+          label="District" value={district} onChangeText={setDistrict} editable={pinNotFound} placeholder={pinNotFound ? "Enter District" : "Auto-populated from PIN"} required
+        />
+
+        <InputField
+          label="City" value={city} onChangeText={setCity} placeholder="Enter City" required maxLength={50}
+        />
+
+        {routes.length > 1 && (
+          <DropdownField
+            label="Route"
+            value={selectedRouteObj?.name || ''}
+            onPress={() => setShowRoutePicker(true)}
+            placeholder="Select route"
+            required
+          />
+        )}
+        {isManualArea ? (
+          <InputField
+            label="Area" value={areaName} onChangeText={setAreaName} placeholder="Enter area name" required
+            rightElement={
+              <TouchableOpacity onPress={() => { setIsManualArea(false); setAreaName(''); }}>
+                <Text style={{ color: '#1A3F75', fontSize: 10, fontWeight: '700', marginRight: 8 }}>SELECT LIST</Text>
+              </TouchableOpacity>
+            }
+          />
+        ) : (
+          <DropdownField
+            label="Area"
+            value={selectedRouteObj?.areas?.find((a: any) => a.id.toString() === areaId)?.name || ''}
+            onPress={() => setShowAreaPicker(true)} placeholder="Select area" required disabled={!routeId}
+          />
+        )}
+      </>
+    );
+  };
 
   const renderStep3 = () => (
     <>
@@ -872,29 +914,35 @@ export default function CreateStoreScreen() {
         </View>
       </Modal>
 
-      {/* ── State Picker ── */}
-      <Modal visible={showStatePicker} animationType="slide" transparent>
+
+      {/* ── Route Picker ── */}
+      <Modal visible={showRoutePicker} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: 'white', borderTopLeftRadius: scale(24), borderTopRightRadius: scale(24), padding: scale(24), paddingBottom: Math.max(insets.bottom, scale(20)), maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select State</Text>
-              <TouchableOpacity onPress={() => setShowStatePicker(false)}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937' }}>Select Route</Text>
+              <TouchableOpacity onPress={() => setShowRoutePicker(false)}>
                 <Ionicons name="close-circle" size={28} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {INDIAN_STATES.map(s => (
+              {routes.map(r => (
                 <TouchableOpacity
-                  key={s}
+                  key={r.id}
                   style={{
                     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
                     padding: 14, borderRadius: 12, marginBottom: 8,
-                    backgroundColor: state === s ? '#EFF6FF' : '#F9FAFB',
+                    backgroundColor: routeId === r.id.toString() ? '#EFF6FF' : '#F9FAFB',
                   }}
-                  onPress={() => { setState(s); setShowStatePicker(false); }}
+                  onPress={() => {
+                    setRouteId(r.id.toString());
+                    setAreaId('');
+                    setIsManualArea(false);
+                    setShowRoutePicker(false);
+                  }}
                 >
-                  <Text style={{ fontWeight: state === s ? '700' : '500', fontSize: 14, color: state === s ? '#1A3F75' : '#4B5563' }}>{s}</Text>
-                  {state === s && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
+                  <Text style={{ fontWeight: routeId === r.id.toString() ? '700' : '500', fontSize: 14, color: routeId === r.id.toString() ? '#1A3F75' : '#4B5563' }}>{r.name}</Text>
+                  {routeId === r.id.toString() && <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
