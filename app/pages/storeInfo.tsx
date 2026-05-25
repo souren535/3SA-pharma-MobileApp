@@ -19,7 +19,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
+import LottieView from "lottie-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AttendanceGate from "../../components/AttendanceGate";
 import {
@@ -155,6 +157,20 @@ export default function StoreInfoScreen() {
   const [transNote, setTransNote] = useState("");
   const [activeStoreImageIndex, setActiveStoreImageIndex] = useState(0);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchShopDetail(storeId),
+        fetchShopOrders(storeId),
+        fetchLedger(storeId),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const showPopup = (title: string, message: string) => {
     setPopupTitle(title);
     setPopupMessage(message);
@@ -222,6 +238,17 @@ export default function StoreInfoScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="transparent"
+            colors={["transparent"]}
+            style={{ backgroundColor: "transparent" }}
+            progressBackgroundColor="transparent"
+            progressViewOffset={-1000}
+          />
+        }
       >
         {[...shopOrders].sort((a, b) => b.id - a.id).map((item) => {
           const statusMeta = getStatusMeta(item.status);
@@ -425,6 +452,17 @@ export default function StoreInfoScreen() {
           className="flex-1"
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="transparent"
+              colors={["transparent"]}
+              style={{ backgroundColor: "transparent" }}
+              progressBackgroundColor="transparent"
+              progressViewOffset={-1000}
+            />
+          }
         >
           {filteredTransactions.length === 0 ? (
             <Text className="text-center text-gray-500 mt-5">
@@ -548,6 +586,17 @@ export default function StoreInfoScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="transparent"
+            colors={["transparent"]}
+            style={{ backgroundColor: "transparent" }}
+            progressBackgroundColor="transparent"
+            progressViewOffset={-1000}
+          />
+        }
       >
         <View className="mx-4">
           {/* Store Images */}
@@ -1189,6 +1238,18 @@ export default function StoreInfoScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Full Screen Loading Overlay */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieView
+            source={require("../../assets/animation/pill-optimized.json")}
+            autoPlay
+            loop
+            style={{ width: 150, height: 150 }}
+          />
+        </View>
+      )}
     </View>
   );
 }

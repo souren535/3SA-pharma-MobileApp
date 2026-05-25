@@ -301,16 +301,7 @@ export default function OrdersScreen() {
               />
             }
           >
-            {refreshing && (
-              <View className="items-center justify-center py-4">
-                <LottieView
-                  source={require("../../assets/animation/pill-optimized.json")}
-                  autoPlay
-                  loop
-                  style={{ width: 80, height: 80 }}
-                />
-              </View>
-            )}
+
             {isLoading && !refreshing ? (
               <View className="flex-1 items-center justify-center py-20">
                 <LottieView
@@ -512,6 +503,18 @@ export default function OrdersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Full Screen Loading Overlay */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieView
+            source={require("../../assets/animation/pill-optimized.json")}
+            autoPlay
+            loop
+            style={{ width: 150, height: 150 }}
+          />
+        </View>
+      )}
     </View>
   );
 }

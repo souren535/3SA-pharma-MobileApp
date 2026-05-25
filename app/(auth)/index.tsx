@@ -611,7 +611,7 @@ export default function LoginScreen() {
           {/* Top Section - Logo & Branding */}
           <View style={{ alignItems: "center", paddingTop: isKeyboardVisible ? 0 : scale(10) }}>
             <Image
-              source={require("../../assets/images/favicon.png")}
+              source={require("../../assets/images/ic_launcher_monochrome.png")}
               style={{
                 width: isKeyboardVisible ? scale(100) : scale(200),
                 height: isKeyboardVisible ? scale(100) : scale(200)
@@ -621,12 +621,12 @@ export default function LoginScreen() {
             <Text
               style={{
                 fontFamily: "Lobster",
-                fontSize: isKeyboardVisible ? moderateScale(50) : moderateScale(100),
+                fontSize: isKeyboardVisible ? moderateScale(50) : moderateScale(90),
                 color: "#1A3F75",
-                marginTop: isKeyboardVisible ? verticalScale(-15) : verticalScale(-35),
+                marginTop: isKeyboardVisible ? verticalScale(-15) : verticalScale(-45),
               }}
             >
-              Delivery
+              Lead Flow
             </Text>
           </View>
 

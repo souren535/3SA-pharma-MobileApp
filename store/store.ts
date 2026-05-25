@@ -620,11 +620,13 @@ interface DashboardStore {
   activeStatus: ActiveStatus | null;
   isLoading: boolean;
   fetchDashboardData: () => Promise<void>;
+  markStoreAsVisitedLocally: (storeId: number) => void;
 }
 
-export const useDashboardStore = create<DashboardStore>((set) => ({
+export const useDashboardStore = create<DashboardStore>((set, get) => ({
   stats: null,
   unvisitedStores: [],
+  completedUnvisitedStoreIds: [],
   activeStatus: null,
   isLoading: false,
   fetchDashboardData: async () => {
@@ -636,9 +638,12 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
         API.get('/dashboard/active-status')
       ]);
 
+      const completed = get().completedUnvisitedStoreIds;
+      const filteredStores = (unvisitedRes.data || []).filter((s: any) => !completed.includes(s.id));
+
       set({
         stats: statsRes.data,
-        unvisitedStores: unvisitedRes.data,
+        unvisitedStores: filteredStores,
         activeStatus: activeRes.data
       });
     } catch (error) {
@@ -646,6 +651,12 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
     } finally {
       set({ isLoading: false });
     }
+  },
+  markStoreAsVisitedLocally: (storeId: number) => {
+    set((state: any) => ({
+      completedUnvisitedStoreIds: [...state.completedUnvisitedStoreIds, storeId],
+      unvisitedStores: state.unvisitedStores.filter((s: any) => s.id !== storeId)
+    }));
   }
 }));
 

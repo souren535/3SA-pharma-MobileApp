@@ -12,7 +12,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
+import LottieView from "lottie-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePaymentStore } from "../../store/store";
 
@@ -26,6 +28,16 @@ export default function PaymentScreen() {
   const [activeTab, setActiveTab] = useState<"transactions" | "details">(
     "transactions",
   );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchPaymentsHistory();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Search & Suggestions State
   const [searchQuery, setSearchQuery] = useState("");
@@ -335,7 +347,21 @@ export default function PaymentScreen() {
       <View className="flex-1 pt-2 pb-4 relative">
         {/* ================= DETAILS TAB ================= */}
         {activeTab === "details" && (
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            className="flex-1"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="transparent"
+                colors={["transparent"]}
+                style={{ backgroundColor: "transparent" }}
+                progressBackgroundColor="transparent"
+                progressViewOffset={-1000}
+              />
+            }
+          >
             {/* Summary Section */}
             <View className="px-4 mb-5 mt-2">
               <View className="rounded-[24px] overflow-hidden shadow-sm">
@@ -609,6 +635,17 @@ export default function PaymentScreen() {
               className="flex-1"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 100 }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="transparent"
+                  colors={["transparent"]}
+                  style={{ backgroundColor: "transparent" }}
+                  progressBackgroundColor="transparent"
+                  progressViewOffset={-1000}
+                />
+              }
             >
               {isLoading ? (
                 <View className="py-12 items-center justify-center">
@@ -805,6 +842,18 @@ export default function PaymentScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Full Screen Loading Overlay */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieView
+            source={require("../../assets/animation/pill-optimized.json")}
+            autoPlay
+            loop
+            style={{ width: 150, height: 150 }}
+          />
+        </View>
+      )}
     </View>
   );
 }

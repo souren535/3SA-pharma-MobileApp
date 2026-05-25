@@ -27,7 +27,7 @@ const slides: OnboardingSlide[] = [
   {
     id: '1',
     image: require('../assets/images/onboarding-1.jpg'),
-    title: 'Fast Delivery',
+    title: 'Lead Flow',
     subtitle: 'Pharma at Your Doorstep',
     description:
       'Streamline your pharmaceutical deliveries with real-time tracking and route optimization for maximum efficiency.',

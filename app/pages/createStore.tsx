@@ -14,6 +14,7 @@ import { useShopStore, useRouteStore } from '../../store/store';
 import { compressToWebP } from '../../utils/imageCompress';
 import { scale, moderateScale, verticalScale } from '../../utils/scale';
 import pincodeData from '../../india_pincode_data.json';
+
 const STEPS = ['Personal', 'Address', 'Legal', 'Review'];
 const SHOP_TYPES = ['Retail', 'Wholesaler'];
 
@@ -165,6 +166,7 @@ export default function CreateStoreScreen() {
   const [state, setState] = useState('');
   const [loadingPin, setLoadingPin] = useState(false);
   const [pinNotFound, setPinNotFound] = useState(false);
+  const [pinAutoFilled, setPinAutoFilled] = useState(false);
   const [routeId, setRouteId] = useState('');
   const [areaId, setAreaId] = useState('');
   const [isManualArea, setIsManualArea] = useState(false);
@@ -203,55 +205,86 @@ export default function CreateStoreScreen() {
 
   const selectedRouteObj = routes.find(r => r.id.toString() === routeId);
 
-  const fetchPinDetails = async (pinCode: string) => {
+  // ── PIN lookup — local JSON first, remote API as silent fallback ─────────────
+  const lookupPinLocal = (pinCode: string): { state: string; district: string; city: string } | null => {
     try {
-      const allStates = (pincodeData as any).data;
-      for (const stateName in allStates) {
-        const districts = allStates[stateName].districts;
-        for (const districtName in districts) {
-          const pincodes = districts[districtName].pincodes;
-          const found = pincodes.find((p: any) => p.pincode === pinCode);
-          if (found) {
-            return {
-              state: stateName,
-              district: districtName,
-              city: found.block || districtName,
-            };
-          }
-        }
+      // Flat map format: { data: { "110001": { state, district, city } } }
+      const flatMap = (pincodeData as any).data as Record<string, { state: string; district: string; city: string }>;
+      const entry = flatMap[pinCode];
+      if (entry && entry.state) {
+        return { state: entry.state, district: entry.district, city: entry.city };
       }
-    } catch (error) {
-      console.error("Local PIN lookup failed:", error);
+    } catch (e) {
+      console.warn('Local pincode lookup error:', e);
     }
     return null;
   };
 
-  // ── PIN lookup ───────────────────────────────────────────────────────────────
   const handlePinChange = async (text: string) => {
     const pinCode = text.replace(/[^0-9]/g, '');
     setPin(pinCode);
+
+    if (pinCode.length < 6) {
+      setPinNotFound(false);
+      setPinAutoFilled(false);
+      return;
+    }
+
     if (pinCode.length === 6) {
       setLoadingPin(true);
+      setPinNotFound(false);
+      setPinAutoFilled(false);
+
+      // ── 1. Try local dataset first (instant, no network needed) ──
+      const localResult = lookupPinLocal(pinCode);
+      if (localResult) {
+        setState(localResult.state);
+        setDistrict(localResult.district);
+        setCity(localResult.city);
+        setPinAutoFilled(true);
+        setPinNotFound(false);
+        setLoadingPin(false);
+        return;
+      }
+
+      // ── 2. Fallback: remote API (silent — no warning shown to user) ──
       try {
-        const details = await fetchPinDetails(pinCode);
-        if (details) {
-          setState(details.state);
-          setDistrict(details.district);
-          setCity(details.city);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const response = await fetch(
+          `https://api.postalpincode.in/pincode/${pinCode}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
+        const data = await response.json();
+        if (
+          Array.isArray(data) &&
+          data[0]?.Status === 'Success' &&
+          data[0]?.PostOffice?.length > 0
+        ) {
+          const po = data[0].PostOffice[0];
+          setState(po.State || '');
+          setDistrict(po.District || '');
+          setCity(po.Block || po.Division || po.District || '');
+          setPinAutoFilled(true);
           setPinNotFound(false);
         } else {
-          setPinNotFound(true);
           setState('');
           setDistrict('');
           setCity('');
+          setPinNotFound(true);
+          setPinAutoFilled(false);
         }
-      } catch (err) {
-        console.warn('PIN Lookup Error:', err);
+      } catch {
+        // Remote API failed — not in local dataset either
+        setState('');
+        setDistrict('');
+        setCity('');
+        setPinNotFound(true);
+        setPinAutoFilled(false);
       } finally {
         setLoadingPin(false);
       }
-    } else {
-      setPinNotFound(false);
     }
   };
 
@@ -594,23 +627,90 @@ export default function CreateStoreScreen() {
   const renderStep2 = () => {
     return (
       <>
+        {/* ── PIN Code with live lookup ── */}
         <InputField
           label="PIN Code" value={pin} onChangeText={handlePinChange}
           placeholder="6-digit PIN" required keyboardType="number-pad" maxLength={6} loading={loadingPin}
         />
+
+        {/* PIN not found warning */}
+        {pinNotFound && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center',
+            backgroundColor: '#FEF3C7', borderRadius: 10, padding: 10, marginBottom: 12,
+          }}>
+            <Ionicons name="warning-outline" size={16} color="#D97706" />
+            <Text style={{ marginLeft: 8, fontSize: 12, color: '#92400E', fontWeight: '600', flex: 1 }}>
+              PIN code not found. Please fill in the details manually.
+            </Text>
+          </View>
+        )}
+
+        {/* PIN auto-filled success banner */}
+        {pinAutoFilled && !pinNotFound && (
+          <View style={{
+            flexDirection: 'row', alignItems: 'center',
+            backgroundColor: '#ECFDF5', borderRadius: 10, padding: 10, marginBottom: 12,
+          }}>
+            <Ionicons name="checkmark-circle-outline" size={16} color="#059669" />
+            <Text style={{ marginLeft: 8, fontSize: 12, color: '#065F46', fontWeight: '600', flex: 1 }}>
+              Location auto-filled. You can edit the city if needed.
+            </Text>
+          </View>
+        )}
+
         <InputField label="Address Line 1" value={address1} onChangeText={setAddress1} placeholder="Street / Building / Area" required maxLength={200} />
         <InputField label="Address Line 2" value={address2} onChangeText={setAddress2} placeholder="Landmark (Optional)" maxLength={200} />
 
+        {/* City — always editable so user can refine */}
         <InputField
-          label="State" value={state} onChangeText={setState} editable={pinNotFound} placeholder={pinNotFound ? "Enter State" : "Auto-populated from PIN"} required
+          label="City"
+          value={city}
+          onChangeText={setCity}
+          placeholder="Enter city"
+          required
+          maxLength={50}
+          rightElement={
+            pinAutoFilled ? (
+              <View style={{ paddingRight: 12 }}>
+                <Ionicons name="pencil-outline" size={16} color="#1A3F75" />
+              </View>
+            ) : undefined
+          }
         />
 
+        {/* District — locked after auto-fill, editable if not found */}
         <InputField
-          label="District" value={district} onChangeText={setDistrict} editable={pinNotFound} placeholder={pinNotFound ? "Enter District" : "Auto-populated from PIN"} required
+          label="District"
+          value={district}
+          onChangeText={setDistrict}
+          editable={pinNotFound || !pinAutoFilled}
+          placeholder={pinAutoFilled ? '' : pinNotFound ? 'Enter district' : 'Auto-filled from PIN'}
+          required
+          rightElement={
+            pinAutoFilled && !pinNotFound ? (
+              <View style={{ paddingRight: 12 }}>
+                <Ionicons name="lock-closed-outline" size={16} color="#9CA3AF" />
+              </View>
+            ) : undefined
+          }
         />
 
+        {/* State — locked after auto-fill, editable if not found */}
         <InputField
-          label="City" value={city} onChangeText={setCity} placeholder="Enter City" required maxLength={50}
+          label="State"
+          value={state}
+          onChangeText={setState}
+          editable={pinNotFound || !pinAutoFilled}
+          placeholder={pinAutoFilled ? '' : pinNotFound ? 'Enter state' : 'Auto-filled from PIN'}
+          required
+          rightElement={
+            pinAutoFilled && !pinNotFound ? (
+              <View style={{ paddingRight: 12 }}>
+                <Ionicons name="lock-closed-outline" size={16} color="#9CA3AF" />
+              </View>
+            ) : undefined
+          }
         />
 
         {routes.length > 1 && (

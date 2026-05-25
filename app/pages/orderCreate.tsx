@@ -15,7 +15,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
+import LottieView from "lottie-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusModal } from "../../components/ui/status-modal";
 import {
@@ -23,6 +25,7 @@ import {
   useOrderStore,
   useProductStore,
   useShopStore,
+  useDashboardStore,
 } from "../../store/store";
 import { moderateScale, scale } from "../../utils/scale";
 
@@ -82,6 +85,20 @@ export default function OrderCreateScreen() {
     message: "",
   });
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchShops(),
+        fetchProducts(),
+        fetchCategories()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -193,6 +210,7 @@ export default function OrderCreateScreen() {
 
     try {
       await createOrder(payload);
+      useDashboardStore.getState().markStoreAsVisitedLocally(payload.shop_id);
       setModalConfig({
         visible: true,
         type: "success",
@@ -375,7 +393,7 @@ export default function OrderCreateScreen() {
                         source={{ uri: getStoreImageUrl(store) }}
                         style={styles.smallAvatar}
                       />
-                      <View style={styles.flex1}>
+                      <View style={styles.flex1} className="ml-2">
                         <Text style={styles.itemTitle}>{store.shop_name}</Text>
                         <Text style={styles.itemSubtitle}>{store.category}</Text>
                       </View>
@@ -523,7 +541,18 @@ export default function OrderCreateScreen() {
         <View style={styles.productListContainer}>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={{ paddingBottom: 10 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="transparent"
+                colors={["transparent"]}
+                style={{ backgroundColor: "transparent" }}
+                progressBackgroundColor="transparent"
+                progressViewOffset={-1000}
+              />
+            }
           >
             {filteredModalProducts.length > 0 ? (
               filteredModalProducts.map((product, idx) => {
@@ -615,7 +644,8 @@ export default function OrderCreateScreen() {
           <Text style={styles.itemListTitle}>Items List ({cart.length})</Text>
         </View>
         <ScrollView
-          style={{ maxHeight: Platform.OS === "ios" ? 400 : 350 }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 10 }}
           showsVerticalScrollIndicator={false}
         >
           {cart.map((item, idx) => (
@@ -723,20 +753,26 @@ export default function OrderCreateScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
-        <ScrollView
-          style={styles.flex1}
-          contentContainerStyle={[
-            styles.scrollContent,
-            currentStep === 2 && { paddingBottom: 100 },
-          ]}
-          scrollEnabled={false}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {currentStep === 0 && renderStep1()}
-          {currentStep === 1 && renderStep2()}
-          {currentStep === 2 && renderStep3()}
-        </ScrollView>
+        {currentStep === 0 && (
+          <ScrollView
+            style={styles.flex1}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {renderStep1()}
+          </ScrollView>
+        )}
+        {currentStep === 1 && (
+          <View style={[styles.flex1, styles.scrollContent, { paddingBottom: 10 }]}>
+            {renderStep2()}
+          </View>
+        )}
+        {currentStep === 2 && (
+          <View style={[styles.flex1, styles.scrollContent, { paddingBottom: 10 }]}>
+            {renderStep3()}
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* Bottom Navigation */}
@@ -775,6 +811,18 @@ export default function OrderCreateScreen() {
         title={modalConfig.title}
         message={modalConfig.message}
       />
+
+      {/* Full Screen Loading Overlay */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieView
+            source={require("../../assets/animation/pill-optimized.json")}
+            autoPlay
+            loop
+            style={{ width: 150, height: 150 }}
+          />
+        </View>
+      )}
     </View>
   );
 }

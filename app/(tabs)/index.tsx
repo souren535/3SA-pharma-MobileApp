@@ -3,8 +3,9 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
+import LottieView from "lottie-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,24 +13,24 @@ import {
   Dimensions,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  RefreshControl,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useAttendanceStore,
+  useAuthStore,
   useDashboardStore,
   useNotificationStore,
   useRouteStore,
   useShopStore,
 } from "../../store/store";
 import API from "../../utils/api";
-import LottieView from "lottie-react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -44,9 +45,20 @@ export default function HomeScreen() {
   });
 
   // Attendance states (global store)
-  const { isWorking, attendanceLoggedOutToday, setIsWorking, syncAttendanceState, loadAttendanceState } = useAttendanceStore();
-  const { stats, unvisitedStores, activeStatus, fetchDashboardData } =
-    useDashboardStore();
+  const {
+    isWorking,
+    attendanceLoggedOutToday,
+    setIsWorking,
+    syncAttendanceState,
+    loadAttendanceState,
+  } = useAttendanceStore();
+  const {
+    stats,
+    unvisitedStores,
+    activeStatus,
+    fetchDashboardData,
+    markStoreAsVisitedLocally,
+  } = useDashboardStore();
   const { notifications, fetchNotifications } = useNotificationStore();
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
@@ -68,8 +80,12 @@ export default function HomeScreen() {
   const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
   const { routes, fetchRoutes } = useRouteStore();
+  const { user } = useAuthStore();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [showVisitNoteModal, setShowVisitNoteModal] = useState(false);
+  const [visitNoteText, setVisitNoteText] = useState("");
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
   // Custom popup modal states
   const [popupVisible, setPopupVisible] = useState(false);
@@ -101,7 +117,7 @@ export default function HomeScreen() {
         fetchShops(),
         fetchRoutes(),
         fetchDashboardData(),
-        fetchNotifications()
+        fetchNotifications(),
       ]);
     } finally {
       setRefreshing(false);
@@ -135,17 +151,17 @@ export default function HomeScreen() {
           formData.append("longitude", "0");
           API.post("/attendance/logout", formData, {
             headers: { "Content-Type": "multipart/form-data" },
-          }).catch(err => console.log("Auto-logout API failed:", err));
+          }).catch((err) => console.log("Auto-logout API failed:", err));
 
           showPopup(
             "Auto Logout",
             "Your shift has been automatically ended because it is past 8:00 PM.",
-            "info"
+            "info",
           );
         }
         loadAttendanceState();
       }
-    }, [isWorking])
+    }, [isWorking]),
   );
 
   // Sync local attendance state with the backend's source of truth to self-heal any desyncs
@@ -197,7 +213,6 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [isWorking]);
-
 
   const handlePowerPress = () => {
     console.log("Power button pressed, isWorking:", isWorking);
@@ -423,8 +438,8 @@ export default function HomeScreen() {
         >
           {/* Top row: Brand + Date */}
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-[20px] font-extrabold text-white tracking-[0.5px]">
-              Delivrise SFA
+            <Text className="text-[20px] font-extrabold text-white tracking-[0.2px] uppercase">
+              Lead Flow
             </Text>
             <View className="flex-row items-center">
               <Text className="text-[13px] text-white/70 font-medium mr-4">
@@ -442,7 +457,7 @@ export default function HomeScreen() {
                 {unreadCount > 0 && (
                   <View className="absolute -right-1.5 -top-1.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border border-[#19212C] items-center justify-center px-1 shadow-sm">
                     <Text className="text-white text-[9px] font-bold">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {unreadCount > 99 ? "99+" : unreadCount}
                     </Text>
                   </View>
                 )}
@@ -453,10 +468,12 @@ export default function HomeScreen() {
           {/* User card */}
           <View className="flex-row items-center bg-white/15 rounded-2xl py-3 px-3.5 mb-5">
             <View className="w-[38px] h-[38px] rounded-full bg-[#1A3F75] justify-center items-center mr-3">
-              <Text className="text-[16px] font-bold text-white">S</Text>
+              <Text className="text-[16px] font-bold text-white">
+                {user?.name.charAt(0)}
+              </Text>
             </View>
             <Text className="flex-1 text-[16px] font-semibold text-white">
-              Souren Khan
+              {user?.name}
             </Text>
             <View
               style={{
@@ -466,15 +483,16 @@ export default function HomeScreen() {
                 height: 40,
               }}
             >
-              {/* Glowing ring behind button (zIndex: 0) */}
               {showLottie && (
                 <Animated.View
                   pointerEvents="none"
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
                     position: "absolute",
+                    top: -10,
+                    left: -10,
                     zIndex: 0,
                     backgroundColor: isWorking ? "#059669" : "#DC2626",
                     transform: [{ scale: pulseAnim }],
@@ -561,7 +579,10 @@ export default function HomeScreen() {
                 <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#DBEAFE] mr-2">
                   <MaterialIcons name="store" size={16} color="#2563EB" />
                 </View>
-                <Text className="text-[15px] font-extrabold text-[#1E40AF] flex-1" numberOfLines={1}>
+                <Text
+                  className="text-[15px] font-extrabold text-[#1E40AF] flex-1"
+                  numberOfLines={1}
+                >
                   {stats?.today_created_stores || 0}
                 </Text>
               </View>
@@ -576,7 +597,10 @@ export default function HomeScreen() {
                 <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#FEF3C7] mr-2">
                   <MaterialIcons name="visibility" size={16} color="#D97706" />
                 </View>
-                <Text className="text-[15px] font-extrabold text-[#92400E] flex-1" numberOfLines={1}>
+                <Text
+                  className="text-[15px] font-extrabold text-[#92400E] flex-1"
+                  numberOfLines={1}
+                >
                   {stats?.today_visits || 0}
                 </Text>
               </View>
@@ -591,7 +615,10 @@ export default function HomeScreen() {
                 <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#D1FAE5] mr-2">
                   <MaterialIcons name="storefront" size={16} color="#059669" />
                 </View>
-                <Text className="text-[15px] font-extrabold text-[#065F46] flex-1" numberOfLines={1}>
+                <Text
+                  className="text-[15px] font-extrabold text-[#065F46] flex-1"
+                  numberOfLines={1}
+                >
                   {shops.length || 0}
                 </Text>
               </View>
@@ -608,7 +635,10 @@ export default function HomeScreen() {
                 <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#DCFCE7] mr-2">
                   <MaterialIcons name="trending-up" size={16} color="#15803D" />
                 </View>
-                <Text className="text-[14px] font-extrabold text-[#166534] flex-1" numberOfLines={1}>
+                <Text
+                  className="text-[14px] font-extrabold text-[#166534] flex-1"
+                  numberOfLines={1}
+                >
                   {stats?.today_sales || 0}
                 </Text>
               </View>
@@ -627,7 +657,10 @@ export default function HomeScreen() {
                     color="#2563EB"
                   />
                 </View>
-                <Text className="text-[14px] font-extrabold text-[#1E40AF] flex-1" numberOfLines={1}>
+                <Text
+                  className="text-[14px] font-extrabold text-[#1E40AF] flex-1"
+                  numberOfLines={1}
+                >
                   ₹{stats?.today_collection || 0}
                 </Text>
               </View>
@@ -640,10 +673,18 @@ export default function HomeScreen() {
             <View className="flex-1 rounded-2xl p-3 bg-[#F5F3FF] border border-[#EDE9FE] shadow-sm shadow-black/5">
               <View className="flex-row items-center mb-2">
                 <View className="w-[30px] h-[30px] rounded-full justify-center items-center bg-[#EDE9FE] mr-2">
-                  <MaterialIcons name="insert-chart" size={16} color="#7C3AED" />
+                  <MaterialIcons
+                    name="insert-chart"
+                    size={16}
+                    color="#7C3AED"
+                  />
                 </View>
-                <Text className="text-[13px] font-extrabold text-[#6B21A8] flex-1" numberOfLines={1}>
-                  ₹{(stats?.monthly_sales || 0).toLocaleString("en-IN", {
+                <Text
+                  className="text-[13px] font-extrabold text-[#6B21A8] flex-1"
+                  numberOfLines={1}
+                >
+                  ₹
+                  {(stats?.monthly_sales || 0).toLocaleString("en-IN", {
                     maximumFractionDigits: 0,
                   })}
                 </Text>
@@ -676,16 +717,6 @@ export default function HomeScreen() {
               />
             }
           >
-            {refreshing && (
-              <View className="items-center justify-center py-4">
-                <LottieView
-                  source={require("../../assets/animation/pill-optimized.json")}
-                  autoPlay
-                  loop
-                  style={{ width: 80, height: 80 }}
-                />
-              </View>
-            )}
             {/* Assigned Route Card */}
             {routes.length > 0 && (
               <TouchableOpacity
@@ -699,7 +730,7 @@ export default function HomeScreen() {
                 className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10"
               >
                 <View className="mr-3.5">
-                  <View className="w-[46px] h-[46px] rounded-[14px] bg-[#F5F3FF] justify-center items-center">
+                  <View className="w-[42px] h-[42px] rounded-[13px] bg-[#F5F3FF] justify-center items-center">
                     <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
                   </View>
                 </View>
@@ -728,13 +759,16 @@ export default function HomeScreen() {
                     <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
                       {routes.length > 1
                         ? `${routes.reduce((sum, r) => sum + (r.areas?.length || 0), 0)} Areas across ${routes.length} Routes`
-                        : `${routes[0].areas?.length || 0} Areas`
-                      }
+                        : `${routes[0].areas?.length || 0} Areas`}
                     </Text>
                   </View>
                 </View>
                 {routes.length > 1 && (
-                  <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={22}
+                    color="#94A3B8"
+                  />
                 )}
               </TouchableOpacity>
             )}
@@ -787,36 +821,65 @@ export default function HomeScreen() {
                       </Text>
                     </View>
 
-                    <TouchableOpacity
-                      className="bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
-                      onPress={() => {
-                        if (!isWorking) {
-                          showPopup(
-                            "Action Required",
-                            "Please start your work day before placing an order.",
-                            "info",
-                          );
-                          return;
-                        }
-                        router.push({
-                          pathname: "/pages/orderCreate",
-                          params: {
-                            storeId: unvisitedStores[0].id.toString(),
-                            storeName: unvisitedStores[0].shop_name,
-                            fromStore: "true",
-                          },
-                        });
-                      }}
-                    >
-                      <MaterialIcons
-                        name="add-shopping-cart"
-                        size={18}
-                        color="white"
-                      />
-                      <Text className="text-white font-bold ml-2 text-sm">
-                        Place Order for this Store
-                      </Text>
-                    </TouchableOpacity>
+                    <View className="flex-row gap-2 mt-2">
+                      <TouchableOpacity
+                        className="flex-1 bg-[#2563EB] py-3 rounded-xl items-center flex-row justify-center"
+                        onPress={() => {
+                          if (!isWorking) {
+                            showPopup(
+                              "Action Required",
+                              "Please start your work day before placing an order.",
+                              "info",
+                            );
+                            return;
+                          }
+                          router.push({
+                            pathname: "/pages/orderCreate",
+                            params: {
+                              storeId: unvisitedStores[0].id.toString(),
+                              storeName: unvisitedStores[0].shop_name,
+                              storeContact: unvisitedStores[0].contact,
+                              storeCategory: unvisitedStores[0].category,
+                              storeImage: unvisitedStores[0].image,
+                              fromStore: "true",
+                            },
+                          });
+                        }}
+                      >
+                        <MaterialIcons
+                          name="add-shopping-cart"
+                          size={18}
+                          color="white"
+                        />
+                        <Text className="text-white font-bold ml-2 text-xs">
+                          Place Order
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        className="flex-1 bg-[#10B981] py-3 rounded-xl items-center flex-row justify-center"
+                        onPress={() => {
+                          if (!isWorking) {
+                            showPopup(
+                              "Action Required",
+                              "Please start your work day before adding a visit note.",
+                              "info",
+                            );
+                            return;
+                          }
+                          setShowVisitNoteModal(true);
+                        }}
+                      >
+                        <MaterialIcons
+                          name="note-add"
+                          size={18}
+                          color="white"
+                        />
+                        <Text className="text-white font-bold ml-2 text-xs">
+                          Visit Note
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
               </View>
@@ -1121,6 +1184,122 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      {/* ===== VISIT NOTE MODAL ===== */}
+      <Modal visible={showVisitNoteModal} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+          <View className="bg-white rounded-3xl w-full p-6 shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-gray-800">
+                Add Visit Note
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowVisitNoteModal(false);
+                  setVisitNoteText("");
+                }}
+              >
+                <MaterialIcons name="close" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              className="bg-gray-50 rounded-xl p-4 text-[14px] text-gray-800 border border-gray-200 mb-4"
+              placeholder="Type your visit note here..."
+              placeholderTextColor="#9CA3AF"
+              value={visitNoteText}
+              onChangeText={setVisitNoteText}
+              multiline
+              numberOfLines={4}
+              style={{ minHeight: 100, textAlignVertical: "top" }}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              className={`bg-[#1A3F75] py-3.5 rounded-2xl items-center shadow-md ${isSubmittingNote ? "opacity-70" : ""}`}
+              disabled={isSubmittingNote}
+              onPress={async () => {
+                if (visitNoteText.trim()) {
+                  setIsSubmittingNote(true);
+                  try {
+                    const { status } =
+                      await Location.requestForegroundPermissionsAsync();
+                    let lat = "0.000000";
+                    let lng = "0.000000";
+                    if (status === "granted") {
+                      const location = await Location.getCurrentPositionAsync(
+                        {},
+                      );
+                      lat = location.coords.latitude.toString();
+                      lng = location.coords.longitude.toString();
+                    }
+
+                    await API.post("/orders/visits", {
+                      shop_id: unvisitedStores[0].id,
+                      visit_type: "nil",
+                      notes: visitNoteText,
+                      latitude: lat,
+                      longitude: lng,
+                    });
+
+                    setShowVisitNoteModal(false);
+                    setVisitNoteText("");
+                    showPopup("Success", "Visit note submitted successfully!");
+                    // Hide the store locally so the next one shows up instantly
+                    markStoreAsVisitedLocally(unvisitedStores[0].id);
+                    // Refresh dashboard to show next unvisited store
+                    await fetchDashboardData();
+                  } catch (error) {
+                    console.error("Failed to submit visit note:", error);
+                    showPopup(
+                      "Error",
+                      "Failed to submit visit note. Please try again.",
+                    );
+                  } finally {
+                    setIsSubmittingNote(false);
+                  }
+                } else {
+                  showPopup(
+                    "Required",
+                    "Please enter a visit note before submitting.",
+                  );
+                }
+              }}
+            >
+              {isSubmittingNote ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-white text-[15px] font-bold">
+                  Submit Note
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Full Screen Loading Overlay */}
+      {refreshing && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(255,255,255,0.8)",
+            zIndex: 9999,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <LottieView
+            source={require("../../assets/animation/pill-optimized.json")}
+            autoPlay
+            loop
+            style={{ width: 150, height: 150 }}
+          />
+        </View>
+      )}
     </View>
   );
 }
