@@ -637,6 +637,21 @@ export default function OrderCreateScreen() {
             {deliveryDate.toLocaleDateString()} • {note || "No notes"}
           </Text>
         </View>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
       </View>
 
       <View style={[styles.itemListContainer, { flex: 1, marginBottom: 0 }]}>

@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
-
+import Logo from "../../assets/LeadFlow-name.png";
 import LottieView from "lottie-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -438,8 +438,8 @@ export default function HomeScreen() {
         >
           {/* Top row: Brand + Date */}
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-[20px] font-extrabold text-white tracking-[0.2px] uppercase">
-              Lead Flow
+            <Text className="text-[20px] font-extrabold tracking-[0.2px] text-white font-['Poppins']">
+              Lead <Text className="text-[20px] font-extrabold tracking-[0.2px] text-green-300 font-['Poppins']">Flow</Text>
             </Text>
             <View className="flex-row items-center">
               <Text className="text-[13px] text-white/70 font-medium mr-4">
