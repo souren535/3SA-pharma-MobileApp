@@ -625,6 +625,7 @@ export interface ActiveStatus {
 interface DashboardStore {
   stats: DashboardStats | null;
   unvisitedStores: any[];
+  completedUnvisitedStoreIds: number[];
   activeStatus: ActiveStatus | null;
   isLoading: boolean;
   fetchDashboardData: () => Promise<void>;
@@ -640,18 +641,42 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   fetchDashboardData: async () => {
     set({ isLoading: true });
     try {
+      // Load persisted completed IDs from AsyncStorage
+      let completed: number[] = [];
+      try {
+        const stored = await AsyncStorage.getItem('completedUnvisitedStoreIds');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Check if stored data is from today; if not, clear it
+          const storedDate = parsed.date;
+          const todayStr = new Date().toDateString();
+          if (storedDate === todayStr) {
+            completed = parsed.ids || [];
+          } else {
+            // New day — clear the persisted list
+            await AsyncStorage.removeItem('completedUnvisitedStoreIds');
+          }
+        }
+      } catch (e) {
+        console.log('Failed to load completed store IDs:', e);
+      }
+
+      // Also merge any IDs already in memory (in case markStoreAsVisitedLocally was called before fetch)
+      const memoryIds = get().completedUnvisitedStoreIds;
+      const mergedCompleted = [...new Set([...completed, ...memoryIds])];
+
       const [statsRes, unvisitedRes, activeRes] = await Promise.all([
         API.get('/dashboard/stats'),
         API.get('/dashboard/unvisited-stores'),
         API.get('/dashboard/active-status')
       ]);
 
-      const completed = get().completedUnvisitedStoreIds;
-      const filteredStores = (unvisitedRes.data || []).filter((s: any) => !completed.includes(s.id));
+      const filteredStores = (unvisitedRes.data || []).filter((s: any) => !mergedCompleted.includes(s.id));
 
       set({
         stats: statsRes.data,
         unvisitedStores: filteredStores,
+        completedUnvisitedStoreIds: mergedCompleted,
         activeStatus: activeRes.data
       });
     } catch (error) {
@@ -661,8 +686,15 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     }
   },
   markStoreAsVisitedLocally: (storeId: number) => {
+    const newIds = [...get().completedUnvisitedStoreIds, storeId];
+    // Persist to AsyncStorage with today's date
+    AsyncStorage.setItem('completedUnvisitedStoreIds', JSON.stringify({
+      date: new Date().toDateString(),
+      ids: newIds
+    })).catch(e => console.log('Failed to persist completed store IDs:', e));
+
     set((state: any) => ({
-      completedUnvisitedStoreIds: [...state.completedUnvisitedStoreIds, storeId],
+      completedUnvisitedStoreIds: newIds,
       unvisitedStores: state.unvisitedStores.filter((s: any) => s.id !== storeId)
     }));
   }
