@@ -500,44 +500,52 @@ export const useAttendanceStore = create<AttendanceStore>((set) => ({
     const val = await AsyncStorage.getItem('isWorking');
     const checkInDate = await AsyncStorage.getItem('checkInDate');
     const logoutDate = await AsyncStorage.getItem('attendanceLogoutDate');
-    const today = new Date().toDateString();
+
+    // Calculate current time in IST (UTC + 5:30)
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istDate = new Date(utc + (5.5 * 60 * 60000));
+    const todayIST = istDate.toDateString();
 
     // Check if user already logged out today (can't re-attend)
-    const loggedOutToday = logoutDate === today;
+    const loggedOutToday = logoutDate === todayIST;
 
     if (val === 'true') {
-      const now = new Date();
-      const isPast8PM = now.getHours() >= 20;
-      const isDifferentDay = checkInDate && checkInDate !== now.toDateString();
+      const isPast8PM_IST = istDate.getHours() >= 20;
+      const isDifferentDay = checkInDate && checkInDate !== todayIST;
 
-      // Auto-logout if it's past 8 PM or it's a new day
-      if (isPast8PM || isDifferentDay) {
+      // Auto-logout if it's past 8 PM IST or it's a new day
+      if (isPast8PM_IST || isDifferentDay) {
         set({ isWorking: false, attendanceLoggedOutToday: loggedOutToday });
         await AsyncStorage.setItem('isWorking', 'false');
         await AsyncStorage.removeItem('checkInDate');
         if (!loggedOutToday) {
-          await AsyncStorage.setItem('attendanceLogoutDate', today);
+          await AsyncStorage.setItem('attendanceLogoutDate', todayIST);
           set({ attendanceLoggedOutToday: true });
         }
 
         // Attempt backend logout to stay in sync
         try {
-          const formData = new FormData();
-          formData.append("last_shop_id", "1");
-          formData.append("latitude", "0");
-          formData.append("longitude", "0");
-          API.post("/attendance/logout", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          }).catch(err => console.log("Auto-logout API failed:", err));
+          // Verify if user is still logged in on the backend before calling logout
+          const statusRes = await API.get('/dashboard/active-status');
+          if (statusRes.data?.status === "LOGGED_IN") {
+            const formData = new FormData();
+            formData.append("last_shop_id", "1");
+            formData.append("latitude", "0");
+            formData.append("longitude", "0");
+            await API.post("/attendance/logout", formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+          }
         } catch (e) {
-          console.log(e);
+          console.log("Auto-logout API failed:", e);
         }
         return;
       }
     }
 
     // If logout date is from a previous day, clear it
-    if (logoutDate && logoutDate !== today) {
+    if (logoutDate && logoutDate !== todayIST) {
       await AsyncStorage.removeItem('attendanceLogoutDate');
       set({ isWorking: val === 'true', attendanceLoggedOutToday: false });
     } else {

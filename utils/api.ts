@@ -56,7 +56,7 @@ API.interceptors.response.use(
           await AsyncStorage.setItem("token", refreshToken);
           originalRequest.headers.Authorization = `Bearer ${refreshToken}`;
           processQueue(null, refreshToken);
-          return API(originalRequest);
+          return await API(originalRequest);
         } else {
           throw new Error("No refresh token stored");
         }
