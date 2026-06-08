@@ -4,7 +4,7 @@ import { Ionicons, Feather, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useShopStore, IMAGE_BASE_URL, useAttendanceStore } from '../../store/store';
+import { useShopStore, IMAGE_BASE_URL, useAttendanceStore, useRouteStore } from '../../store/store';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';
@@ -41,6 +41,7 @@ export default function StoresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { shops, fetchShops, isLoading } = useShopStore();
+  const { routes, fetchRoutes } = useRouteStore();
 
   const now = new Date();
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(now));
@@ -53,10 +54,14 @@ export default function StoresScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Route filter state
+  const [showRouteFilter, setShowRouteFilter] = useState(false);
+  const [selectedRouteIds, setSelectedRouteIds] = useState<Set<number>>(new Set());
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchShops().finally(() => setRefreshing(false));
-  }, [fetchShops]);
+    Promise.all([fetchShops(), fetchRoutes()]).finally(() => setRefreshing(false));
+  }, [fetchShops, fetchRoutes]);
 
   const monthDates = useMemo(() => getDatesForMonth(selectedMonth, selectedYear), [selectedMonth, selectedYear]);
 
@@ -79,23 +84,47 @@ export default function StoresScreen() {
       }, 500);
 
       fetchShops();
+      fetchRoutes();
 
       return () => {
         setShowSearch(false);
         setSearchQuery("");
       };
-    }, [fetchShops])
+    }, [fetchShops, fetchRoutes])
   );
 
-  // Filter shops by selected date
+  const toggleRouteFilter = (routeId: number) => {
+    setSelectedRouteIds(prev => {
+      const next = new Set(prev);
+      if (next.has(routeId)) {
+        next.delete(routeId);
+      } else {
+        next.add(routeId);
+      }
+      return next;
+    });
+  };
+
+  const clearRouteFilter = () => {
+    setSelectedRouteIds(new Set());
+  };
+
+  // Filter shops by search and selected routes
   const filteredShops = useMemo(() => {
-    // return shops.filter(shop => {
-    //   const shopDate = shop.created_at.split('T')[0];
-    //   return shopDate === selectedDate;
-    // });
-    if (!searchQuery) return shops;
-    return shops.filter(shop => shop.shop_name?.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [shops, selectedDate, searchQuery]);
+    let result = shops;
+
+    // Filter by search query
+    if (searchQuery) {
+      result = result.filter(shop => shop.shop_name?.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+
+    // Filter by selected routes
+    if (selectedRouteIds.size > 0) {
+      result = result.filter(shop => selectedRouteIds.has(shop.route?.id || shop.route_id));
+    }
+
+    return result;
+  }, [shops, selectedDate, searchQuery, selectedRouteIds]);
 
   return (
     <View style={styles.container}>
@@ -125,21 +154,35 @@ export default function StoresScreen() {
               />
             )}
           </View>
-          <View className="flex-row gap-3 ml-2">
-            <TouchableOpacity
-              className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-              onPress={() => {
-                if (showSearch) {
-                  setSearchQuery("");
-                  setShowSearch(false);
-                } else {
-                  setShowSearch(true);
-                }
-              }}
-            >
-              <Ionicons name={showSearch ? "close" : "search"} size={20} color="#1E293B" />
-            </TouchableOpacity>
-          </View>
+          {isWorking && (
+            <View className="flex-row gap-3 ml-2">
+              <TouchableOpacity
+                className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
+                onPress={() => {
+                  if (showSearch) {
+                    setSearchQuery("");
+                    setShowSearch(false);
+                  } else {
+                    setShowSearch(true);
+                  }
+                }}
+              >
+                <Ionicons name={showSearch ? "close" : "search"} size={20} color="#1E293B" />
+              </TouchableOpacity>
+              {/* Route Filter Button */}
+              <TouchableOpacity
+                className={`w-10 h-10 rounded-full items-center justify-center shadow-sm ${selectedRouteIds.size > 0 ? 'bg-[#1A3F75]' : 'bg-white'}`}
+                onPress={() => setShowRouteFilter(true)}
+              >
+                <Ionicons name="filter" size={20} color={selectedRouteIds.size > 0 ? 'white' : '#1E293B'} />
+                {selectedRouteIds.size > 0 && (
+                  <View className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full items-center justify-center border border-white">
+                    <Text className="text-white text-[9px] font-bold">{selectedRouteIds.size}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </LinearGradient>
 
@@ -204,6 +247,32 @@ export default function StoresScreen() {
           </ScrollView>
         </View>
       </View>
+      )}
+
+      {/* Active Route Filter Chips */}
+      {selectedRouteIds.size > 0 && (
+        <View className="bg-[#F3F6F8] px-4 pt-2 pb-1">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {routes
+              .filter(r => selectedRouteIds.has(r.id))
+              .map(route => (
+                <TouchableOpacity
+                  key={route.id}
+                  className="flex-row items-center bg-[#1A3F75] rounded-full px-3 py-1.5 mr-2"
+                  onPress={() => toggleRouteFilter(route.id)}
+                >
+                  <Text className="text-white text-xs font-bold mr-1.5">{route.name}</Text>
+                  <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.8)" />
+                </TouchableOpacity>
+              ))}
+            <TouchableOpacity
+              className="flex-row items-center bg-gray-200 rounded-full px-3 py-1.5"
+              onPress={clearRouteFilter}
+            >
+              <Text className="text-gray-600 text-xs font-bold">Clear All</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       )}
 
       {/* Scrollable Store List */}
@@ -295,7 +364,11 @@ export default function StoresScreen() {
               <MaterialIcons name="storefront" size={40} color="#94A3B8" />
             </View>
             <Text className="text-gray-800 text-lg font-bold mb-1">No Stores Found</Text>
-            <Text className="text-gray-500 text-center">There are no stores listed for this region or date yet.</Text>
+            <Text className="text-gray-500 text-center">
+              {selectedRouteIds.size > 0
+                ? 'No stores found for the selected routes. Try changing your filter.'
+                : 'There are no stores listed for this region or date yet.'}
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -309,6 +382,81 @@ export default function StoresScreen() {
       </TouchableOpacity>
       </>
       )}
+
+      {/* Route Filter Modal */}
+      <Modal visible={showRouteFilter} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 20 }}>
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-xl font-bold text-[#1A3F75]">Filter by Route</Text>
+              <TouchableOpacity onPress={() => setShowRouteFilter(false)}>
+                <Ionicons name="close-circle" size={30} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            <Text className="text-gray-500 text-xs mb-4">Select routes to show only their stores</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+              {routes.map((route) => {
+                const isSelected = selectedRouteIds.has(route.id);
+                return (
+                  <TouchableOpacity
+                    key={route.id}
+                    className={`flex-row items-center p-4 rounded-2xl mb-3 ${isSelected ? 'bg-[#EFF6FF] border border-[#BFDBFE]' : 'bg-gray-50 border border-gray-100'}`}
+                    onPress={() => toggleRouteFilter(route.id)}
+                  >
+                    {/* Checkbox */}
+                    <View
+                      className={`w-6 h-6 rounded-lg border-2 items-center justify-center mr-3 ${
+                        isSelected
+                          ? 'border-[#1A3F75] bg-[#1A3F75]'
+                          : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {isSelected && (
+                        <Ionicons name="checkmark" size={16} color="white" />
+                      )}
+                    </View>
+
+                    <View className="flex-1">
+                      <Text className={`text-[15px] font-bold ${isSelected ? 'text-[#1A3F75]' : 'text-gray-700'}`}>
+                        {route.name}
+                      </Text>
+                      <Text className="text-xs text-gray-400 mt-0.5">
+                        {route.areas?.length || 0} Areas
+                      </Text>
+                    </View>
+
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={24} color="#1A3F75" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity
+                className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
+                onPress={() => {
+                  clearRouteFilter();
+                  setShowRouteFilter(false);
+                }}
+              >
+                <Text className="text-gray-600 font-bold text-[14px]">Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
+                onPress={() => setShowRouteFilter(false)}
+              >
+                <Text className="text-white font-bold text-[14px]">
+                  Apply {selectedRouteIds.size > 0 ? `(${selectedRouteIds.size})` : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Month Picker Modal */}
       <Modal visible={showMonthPicker} animationType="slide" transparent>

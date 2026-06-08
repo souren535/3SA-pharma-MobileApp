@@ -86,21 +86,65 @@ export interface Area {
   name: string;
 }
 
+// Helper: get today's date as YYYY-MM-DD in IST
+const getTodayIST = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(now.getTime() + istOffset);
+  return istDate.toISOString().split('T')[0];
+};
+
 interface RouteStore {
   routes: Route[];
+  selectedRouteId: number | null;
+  routeLockedDate: string | null; // YYYY-MM-DD when the route was last submitted
+  isLockedToday: boolean;
   fetchRoutes: () => Promise<void>;
+  selectRoute: (routeId: number) => Promise<void>;
+  loadRouteState: () => Promise<void>;
 }
 
-export const useRouteStore = create<RouteStore>((set) => ({
+export const useRouteStore = create<RouteStore>((set, get) => ({
   routes: [],
+  selectedRouteId: null,
+  routeLockedDate: null,
+  isLockedToday: false,
+  loadRouteState: async () => {
+    try {
+      const savedId = await AsyncStorage.getItem('selectedRouteId');
+      const savedDate = await AsyncStorage.getItem('routeLockedDate');
+      const today = getTodayIST();
+      set({
+        selectedRouteId: savedId ? parseInt(savedId) : null,
+        routeLockedDate: savedDate,
+        isLockedToday: savedDate === today,
+      });
+    } catch (e) {
+      console.log('Error loading route state:', e);
+    }
+  },
   fetchRoutes: async () => {
     try {
       const response = await API.get('/location/assigned-routes');
       set({ routes: response.data });
+      // Auto-select the first route if none is selected
+      const currentSelected = get().selectedRouteId;
+      if (!currentSelected && response.data.length > 0) {
+        set({ selectedRouteId: response.data[0].id });
+      }
     } catch (error) {
       console.log('Error fetching assigned routes:', error);
     }
-  }
+  },
+  selectRoute: async (routeId: number) => {
+    // Call the real API
+    await API.post('/location/select-route', { route_id: routeId });
+
+    const today = getTodayIST();
+    set({ selectedRouteId: routeId, routeLockedDate: today, isLockedToday: true });
+    await AsyncStorage.setItem('selectedRouteId', String(routeId));
+    await AsyncStorage.setItem('routeLockedDate', today);
+  },
 }));
 
 import { shopService } from "../service/shop.service";

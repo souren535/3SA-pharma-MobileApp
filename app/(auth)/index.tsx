@@ -92,6 +92,7 @@ export default function LoginScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [otpSuccessMessage, setOtpSuccessMessage] = useState("");
 
   const otpRefs = useRef<(TextInput | null)[]>([]);
   const forgotClosedTimeRef = useRef<number | null>(null);
@@ -108,6 +109,7 @@ export default function LoginScreen() {
     setShowNewPassword(false);
     setShowConfirmPassword(false);
     setForgotLoading(false);
+    setOtpSuccessMessage("");
     forgotClosedTimeRef.current = null;
   };
 
@@ -203,13 +205,19 @@ export default function LoginScreen() {
       showModal("error", "Error", "Please enter 6-digit OTP code");
       return;
     }
-    // Transition to the reset password step locally since verify and reset are combined
-    setForgotStep("RESET");
-  };
-
-  const autoSubmitOtp = async (otpString: string) => {
-    // Transition to the reset password step locally since verify and reset are combined
-    setForgotStep("RESET");
+    
+    // Simulate verification or wait before showing message
+    setForgotLoading(true);
+    setTimeout(() => {
+      setForgotLoading(false);
+      setOtpSuccessMessage("OTP Verified Successfully!");
+      
+      // Wait briefly to show message before moving to next step
+      setTimeout(() => {
+        setOtpSuccessMessage("");
+        setForgotStep("RESET");
+      }, 1500);
+    }, 500);
   };
 
   const handleResendOtp = async () => {
@@ -280,13 +288,10 @@ export default function LoginScreen() {
       otpRefs.current[index + 1]?.focus();
     }
 
-    // Auto submit if all 6 digits are filled
+    // Just dismiss keyboard if all 6 digits are filled
     const fullOtp = newOtp.join("");
     if (fullOtp.length === 6) {
       Keyboard.dismiss();
-      setTimeout(() => {
-        autoSubmitOtp(fullOtp);
-      }, 100);
     }
   };
 
@@ -452,6 +457,15 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* OTP Success Message */}
+        {otpSuccessMessage ? (
+          <View style={{ marginBottom: scale(15), alignItems: "center" }}>
+            <Text style={{ color: "#10B981", fontSize: moderateScale(14), fontWeight: "bold" }}>
+              <Ionicons name="checkmark-circle" size={16} /> {otpSuccessMessage}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Verify Button */}
         <TouchableOpacity

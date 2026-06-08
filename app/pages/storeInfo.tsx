@@ -1,5 +1,6 @@
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -146,6 +147,24 @@ export default function StoreInfoScreen() {
   const [popupTitle, setPopupTitle] = useState("");
   const [popupMessage, setPopupMessage] = useState("");
   const [showFilterPopup, setShowFilterPopup] = useState(false);
+
+  // Visit flow states
+  const VISIT_TYPES = [
+    { label: "Follow Up", value: "follow_up", icon: "replay" },
+    { label: "New Order Discussion", value: "new_order", icon: "shopping-cart" },
+    { label: "Payment Collection", value: "payment", icon: "account-balance-wallet" },
+    { label: "Product Enquiry", value: "enquiry", icon: "help-outline" },
+    { label: "Other", value: "other", icon: "edit" },
+  ];
+  const [showVisitTypeModal, setShowVisitTypeModal] = useState(false);
+  const [selectedVisitType, setSelectedVisitType] = useState<string | null>(null);
+  const [otherVisitNote, setOtherVisitNote] = useState("");
+  const [showVisitCaptureModal, setShowVisitCaptureModal] = useState(false);
+  const [visitSelfieUri, setVisitSelfieUri] = useState<string | null>(null);
+  const [visitLocation, setVisitLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [visitLocationLoading, setVisitLocationLoading] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const visitCameraRef = useRef<any>(null);
 
   // Create Transaction states
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -845,10 +864,12 @@ export default function StoreInfoScreen() {
             className="flex-row items-center bg-white py-2 px-4 rounded-full shadow-md"
             onPress={() => {
               setIsFabOpen(false);
-              setShowVisitNoteModal(true);
+              setSelectedVisitType(null);
+              setOtherVisitNote("");
+              setShowVisitTypeModal(true);
             }}
           >
-            <Text className="mr-2 text-[#1A3F75] font-bold">Visit Note</Text>
+            <Text className="mr-2 text-[#1A3F75] font-bold">Visit Store</Text>
             <View className="w-10 h-10 bg-[#1A3F75] rounded-full items-center justify-center">
               <MaterialIcons name="note-add" size={20} color="white" />
             </View>
@@ -1117,7 +1138,330 @@ export default function StoreInfoScreen() {
         </View>
       </Modal>
 
-      {/* ===== VISIT NOTE MODAL ===== */}
+      {/* ===== VISIT TYPE SELECTION MODAL ===== */}
+      <Modal visible={showVisitTypeModal} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+          <View className="bg-white rounded-3xl w-full p-6 shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold text-gray-800">
+                Visit Store
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowVisitTypeModal(false);
+                  setSelectedVisitType(null);
+                  setOtherVisitNote("");
+                }}
+              >
+                <Ionicons name="close-circle" size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">
+              Select Visit Purpose
+            </Text>
+
+            {VISIT_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type.value}
+                className={`flex-row items-center p-3.5 rounded-xl mb-2 border ${
+                  selectedVisitType === type.value
+                    ? 'bg-[#EFF6FF] border-[#BFDBFE]'
+                    : 'bg-gray-50 border-gray-100'
+                }`}
+                onPress={() => setSelectedVisitType(type.value)}
+              >
+                <View
+                  className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
+                    selectedVisitType === type.value ? 'bg-[#1A3F75]' : 'bg-gray-200'
+                  }`}
+                >
+                  <MaterialIcons
+                    name={type.icon as any}
+                    size={18}
+                    color={selectedVisitType === type.value ? 'white' : '#64748B'}
+                  />
+                </View>
+                <Text
+                  className={`flex-1 text-[14px] font-bold ${
+                    selectedVisitType === type.value ? 'text-[#1A3F75]' : 'text-gray-700'
+                  }`}
+                >
+                  {type.label}
+                </Text>
+                {selectedVisitType === type.value && (
+                  <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            {/* Other text input */}
+            {selectedVisitType === 'other' && (
+              <TextInput
+                className="bg-gray-50 rounded-xl p-4 text-[14px] text-gray-800 border border-gray-200 mt-2 mb-2"
+                placeholder="Describe your visit purpose..."
+                placeholderTextColor="#9CA3AF"
+                value={otherVisitNote}
+                onChangeText={setOtherVisitNote}
+                multiline
+                numberOfLines={3}
+                style={{ minHeight: 80, textAlignVertical: "top" }}
+                autoFocus
+              />
+            )}
+
+            <TouchableOpacity
+              className={`mt-3 py-3.5 rounded-2xl items-center shadow-md ${
+                selectedVisitType ? 'bg-[#1A3F75]' : 'bg-gray-200'
+              }`}
+              disabled={!selectedVisitType || (selectedVisitType === 'other' && !otherVisitNote.trim())}
+              onPress={async () => {
+                if (!selectedVisitType) return;
+                if (selectedVisitType === 'other' && !otherVisitNote.trim()) return;
+
+                setShowVisitTypeModal(false);
+
+                // Reset capture state
+                setVisitSelfieUri(null);
+                setVisitLocation(null);
+
+                // Request permissions
+                if (!cameraPermission?.granted) {
+                  await requestCameraPermission();
+                }
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== "granted") {
+                  showPopup("Permission Denied", "Location permission is required.");
+                  return;
+                }
+
+                // Auto-fetch location
+                setVisitLocationLoading(true);
+                setShowVisitCaptureModal(true);
+                try {
+                  const loc = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                  });
+                  setVisitLocation({
+                    lat: loc.coords.latitude,
+                    lng: loc.coords.longitude,
+                  });
+                } catch (error) {
+                  console.log("Location error:", error);
+                }
+                setVisitLocationLoading(false);
+              }}
+            >
+              <Text
+                className={`text-[15px] font-bold ${
+                  selectedVisitType ? 'text-white' : 'text-gray-400'
+                }`}
+              >
+                Continue
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== VISIT SELFIE & LOCATION CAPTURE MODAL ===== */}
+      <Modal
+        visible={showVisitCaptureModal}
+        animationType="slide"
+        transparent={false}
+      >
+        <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+          <View className="flex-1">
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-5 pt-3 pb-4 border-b border-gray-100">
+              <Text className="text-xl font-bold text-[#1E293B]">
+                Capture Visit Details
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setVisitSelfieUri(null);
+                  setVisitLocation(null);
+                  setShowVisitCaptureModal(false);
+                }}
+                className="bg-gray-100 p-2 rounded-full"
+              >
+                <MaterialIcons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Camera Section */}
+            <View className="px-5 mt-4">
+              <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
+                Take a Selfie
+              </Text>
+              <View
+                className="bg-gray-100 mb-2 border border-gray-200"
+                style={{
+                  height: 300,
+                  width: Dimensions.get("window").width - 40,
+                  overflow: "hidden",
+                  borderRadius: Platform.OS === "ios" ? 16 : 0,
+                }}
+              >
+                {visitSelfieUri ? (
+                  <View style={{ flex: 1 }}>
+                    <Image
+                      source={{ uri: visitSelfieUri }}
+                      style={{ flex: 1 }}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      className="absolute bottom-3 right-3 bg-white/90 px-4 py-2 rounded-xl"
+                      onPress={() => setVisitSelfieUri(null)}
+                    >
+                      <Text className="text-[#1A3F75] font-bold text-xs">
+                        Retake
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : cameraPermission?.granted ? (
+                  <View
+                    style={{
+                      width: Dimensions.get("window").width - 40,
+                      height: 300,
+                      position: "relative",
+                    }}
+                  >
+                    {showVisitCaptureModal && (
+                      <CameraView
+                        ref={visitCameraRef}
+                        style={{
+                          width: Dimensions.get("window").width - 40,
+                          height: 300,
+                        }}
+                        facing="front"
+                      />
+                    )}
+                    <TouchableOpacity
+                      className="absolute bottom-4 self-center w-16 h-16 rounded-full bg-white border-4 border-[#1A3F75] items-center justify-center shadow-lg"
+                      onPress={async () => {
+                        if (visitCameraRef.current) {
+                          const photo = await visitCameraRef.current.takePictureAsync({ quality: 0.7 });
+                          setVisitSelfieUri(photo.uri);
+                        }
+                      }}
+                    >
+                      <View className="w-12 h-12 rounded-full bg-[#1A3F75]" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View className="flex-1 items-center justify-center">
+                    <MaterialIcons name="camera-alt" size={40} color="#9CA3AF" />
+                    <Text className="text-gray-400 mt-2 text-sm">
+                      Camera permission required
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Location Section */}
+            <ScrollView className="px-5 mt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+              <View className="mb-4">
+                <Text className="text-[12px] font-bold text-gray-400 uppercase mb-2 tracking-wider">
+                  Location Status
+                </Text>
+                <View className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100/50">
+                  {visitLocationLoading ? (
+                    <View className="flex-row items-center">
+                      <ActivityIndicator size="small" color="#1A3F75" />
+                      <Text className="ml-3 text-[#1A3F75] font-medium text-[14px]">
+                        Capturing precise location...
+                      </Text>
+                    </View>
+                  ) : visitLocation ? (
+                    <View>
+                      <View className="flex-row items-center mb-1">
+                        <MaterialIcons name="location-on" size={18} color="#059669" />
+                        <Text className="ml-2 text-green-700 font-bold text-[14px]">
+                          Location captured successfully
+                        </Text>
+                      </View>
+                      <Text className="text-gray-500 text-[12px] ml-6">
+                        Lat: {visitLocation.lat.toFixed(6)}, Lng: {visitLocation.lng.toFixed(6)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center">
+                      <MaterialIcons name="location-off" size={18} color="#DC2626" />
+                      <Text className="ml-2 text-red-600 font-bold text-[14px]">
+                        Unable to capture location
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Submit Button */}
+              <View
+                className="px-5 pt-3"
+                style={{
+                  paddingBottom: Platform.OS === "ios" ? insets.bottom + 10 : insets.bottom + 20,
+                }}
+              >
+                <TouchableOpacity
+                  className={`py-4 rounded-2xl items-center shadow-sm ${
+                    visitSelfieUri && visitLocation ? "bg-[#1A3F75]" : "bg-gray-200"
+                  }`}
+                  onPress={async () => {
+                    if (!visitSelfieUri || !visitLocation) return;
+
+                    setIsSubmittingNote(true);
+                    try {
+                      const visitNote = selectedVisitType === 'other'
+                        ? otherVisitNote
+                        : VISIT_TYPES.find(v => v.value === selectedVisitType)?.label || selectedVisitType;
+
+                      await API.post("/orders/visits", {
+                        shop_id: parseInt(storeId),
+                        visit_type: selectedVisitType,
+                        notes: visitNote,
+                        latitude: String(visitLocation.lat),
+                        longitude: String(visitLocation.lng),
+                        // TODO: Send image_url when API supports it
+                        // image_url: visitSelfieUri,
+                      });
+
+                      setShowVisitCaptureModal(false);
+                      setVisitSelfieUri(null);
+                      setVisitLocation(null);
+                      setSelectedVisitType(null);
+                      setOtherVisitNote("");
+                      showPopup("Success", "Visit recorded successfully!");
+                    } catch (error) {
+                      console.error("Failed to submit visit:", error);
+                      showPopup(
+                        "Error",
+                        "Failed to record visit. Please try again.",
+                      );
+                    } finally {
+                      setIsSubmittingNote(false);
+                    }
+                  }}
+                  disabled={isSubmittingNote || !visitSelfieUri || !visitLocation}
+                >
+                  {isSubmittingNote ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text
+                      className={`text-[16px] font-bold ${!visitSelfieUri || !visitLocation ? "text-gray-400" : "text-white"}`}
+                    >
+                      Confirm & Submit Visit
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== VISIT NOTE MODAL (Legacy - kept for fallback) ===== */}
       <Modal visible={showVisitNoteModal} animationType="fade" transparent>
         <View className="flex-1 bg-black/50 justify-center items-center px-5">
           <View className="bg-white rounded-3xl w-full p-6 shadow-xl">

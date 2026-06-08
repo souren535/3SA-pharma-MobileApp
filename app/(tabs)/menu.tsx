@@ -48,12 +48,13 @@ export default function MenuScreen() {
     }
     return { uri: `${IMAGE_BASE_URL}${img.startsWith("/") ? "" : "/"}${img}` };
   };
+  console.log("USER", user);
 
   const MENU_ITEMS = [
     {
       id: "profile",
       title: user?.name || "Salesman User",
-      subtitle: `${user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "Sales Executive"} (ID: #${user?.employee_id || user?.id || "N/A"})`,
+      // subtitle: `${user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ""}`,
       icon: "person-circle-outline",
       type: "profile",
       image: getProfileImageSource(),
@@ -118,7 +119,7 @@ export default function MenuScreen() {
             <Text className="text-xl font-bold text-slate-900">
               {item.title}
             </Text>
-            <Text className="text-slate-500 text-sm">{item.subtitle}</Text>
+            {/* <Text className="text-slate-500 text-sm">{item.subtitle}</Text> */}
             <View className="flex-row items-center mt-2">
               <View className="bg-green-100 px-2 py-0.5 rounded-full">
                 <Text className="text-green-700 text-[10px] font-bold uppercase">
@@ -316,7 +317,7 @@ export default function MenuScreen() {
                 onPress={confirmLogout}
               >
                 <Text className="text-white font-bold text-lg">
-                  Yes, Logout
+                  Yes
                 </Text>
               </TouchableOpacity>
             </View>

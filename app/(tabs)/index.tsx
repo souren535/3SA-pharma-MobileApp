@@ -79,7 +79,7 @@ export default function HomeScreen() {
   const [showLottie, setShowLottie] = useState(true);
   const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
-  const { routes, fetchRoutes } = useRouteStore();
+  const { routes, fetchRoutes, loadRouteState } = useRouteStore();
   const { user } = useAuthStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -130,6 +130,8 @@ export default function HomeScreen() {
     fetchDashboardData();
     // Restore attendance state from storage
     loadAttendanceState();
+    // Restore route lock state from storage
+    loadRouteState();
   }, []);
 
   useFocusEffect(
@@ -718,7 +720,10 @@ export default function HomeScreen() {
             }
           >
             {/* Assigned Route Card */}
-            {routes.length > 0 && (
+            {routes.length > 0 && (() => {
+              const selectedRouteId = useRouteStore.getState().selectedRouteId;
+              const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
+              return (
               <TouchableOpacity
                 activeOpacity={routes.length > 1 ? 0.7 : 1}
                 disabled={routes.length <= 1}
@@ -736,16 +741,16 @@ export default function HomeScreen() {
                 </View>
                 <View className="flex-1">
                   <Text className="text-[13px] font-semibold text-[#64748B] mb-1">
-                    {routes.length > 1 ? "Assigned Routes" : "Assigned Route"}
+                    {routes.length > 1 ? "Active Route" : "Assigned Route"}
                   </Text>
                   <View className="flex-row items-center flex-wrap">
                     <Text className="text-[15px] font-extrabold text-[#1E293B]">
-                      {routes[0].name}
+                      {selectedRoute.name}
                     </Text>
                     {routes.length > 1 && (
                       <View className="bg-[#EEF2F6] px-2.5 py-0.5 rounded-md ml-2 border border-[#E2E8F0]">
                         <Text className="text-[12px] font-bold text-[#475569]">
-                          +{routes.length - 1}
+                          +{routes.length - 1} more
                         </Text>
                       </View>
                     )}
@@ -757,9 +762,7 @@ export default function HomeScreen() {
                       color="#94A3B8"
                     />
                     <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
-                      {routes.length > 1
-                        ? `${routes.reduce((sum, r) => sum + (r.areas?.length || 0), 0)} Areas across ${routes.length} Routes`
-                        : `${routes[0].areas?.length || 0} Areas`}
+                      {selectedRoute.areas?.length || 0} Areas
                     </Text>
                   </View>
                 </View>
@@ -771,10 +774,11 @@ export default function HomeScreen() {
                   />
                 )}
               </TouchableOpacity>
-            )}
+              );
+            })()}
 
-            {/* Visit Next Store */}
-            {unvisitedStores.length > 0 && (
+            {/* Visit Next Store — commented out, not needed right now */}
+            {/* {unvisitedStores.length > 0 && (
               <View className="bg-white rounded-2xl mb-2.5 shadow-sm shadow-black/5 overflow-hidden">
                 <TouchableOpacity
                   className="flex-row items-center p-4"
@@ -883,7 +887,7 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-            )}
+            )} */}
 
             {/* Place New Order */}
             <TouchableOpacity

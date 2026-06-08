@@ -1,13 +1,17 @@
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -86,6 +90,14 @@ export default function OrderCreateScreen() {
   });
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Selfie & Location capture states
+  const [showCaptureModal, setShowCaptureModal] = useState(false);
+  const [captureSelfieUri, setCaptureSelfieUri] = useState<string | null>(null);
+  const [captureLocation, setCaptureLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [captureLocationLoading, setCaptureLocationLoading] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -179,6 +191,7 @@ export default function OrderCreateScreen() {
     );
   };
 
+  // Open selfie + location capture modal instead of calling API directly
   const handlePlaceOrder = async () => {
     if (!selectedStoreId && !storeIdParam) {
       setModalConfig({
@@ -199,6 +212,71 @@ export default function OrderCreateScreen() {
       return;
     }
 
+    // Reset capture state and open the modal
+    setCaptureSelfieUri(null);
+    setCaptureLocation(null);
+
+    // Request permissions
+    if (!cameraPermission?.granted) {
+      await requestCameraPermission();
+    }
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Permission Denied",
+        message: "Location permission is required to place an order.",
+      });
+      return;
+    }
+
+    // Auto-fetch location
+    setCaptureLocationLoading(true);
+    setShowCaptureModal(true);
+    try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setCaptureLocation({
+        lat: loc.coords.latitude,
+        lng: loc.coords.longitude,
+      });
+    } catch (error) {
+      console.log("Location error:", error);
+    }
+    setCaptureLocationLoading(false);
+  };
+
+  const takeCapturePhoto = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      setCaptureSelfieUri(photo.uri);
+    }
+  };
+
+  const submitOrderWithCapture = async () => {
+    if (!captureSelfieUri) {
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Required",
+        message: "Please take a selfie before placing the order.",
+      });
+      return;
+    }
+    if (!captureLocation) {
+      setModalConfig({
+        visible: true,
+        type: "error",
+        title: "Required",
+        message: "Location not captured yet.",
+      });
+      return;
+    }
+
+    setShowCaptureModal(false);
+
     const payload = {
       shop_id: selectedStoreId || parseInt(storeIdParam),
       items: cart.map((item) => ({
@@ -206,6 +284,10 @@ export default function OrderCreateScreen() {
         quantity: item.qty,
       })),
       notes: note,
+      // TODO: Send image_url and location when API supports it
+      // image_url: captureSelfieUri,
+      latitude: String(captureLocation.lat),
+      longitude: String(captureLocation.lng),
     };
 
     try {
@@ -818,6 +900,164 @@ export default function OrderCreateScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* ===== SELFIE & LOCATION CAPTURE MODAL ===== */}
+      <Modal
+        visible={showCaptureModal}
+        animationType="slide"
+        transparent={false}
+      >
+        <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+          <View className="flex-1">
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-5 pt-3 pb-4 border-b border-gray-100">
+              <Text className="text-xl font-bold text-[#1E293B]">
+                Verify & Place Order
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setCaptureSelfieUri(null);
+                  setCaptureLocation(null);
+                  setShowCaptureModal(false);
+                }}
+                className="bg-gray-100 p-2 rounded-full"
+              >
+                <MaterialIcons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Camera Section */}
+            <View className="px-5 mt-4">
+              <Text className="text-xs font-bold text-gray-400 uppercase mb-2">
+                Take a Selfie
+              </Text>
+              <View
+                className="bg-gray-100 mb-2 border border-gray-200"
+                style={{
+                  height: 300,
+                  width: Dimensions.get("window").width - 40,
+                  overflow: "hidden",
+                  borderRadius: Platform.OS === "ios" ? 16 : 0,
+                }}
+              >
+                {captureSelfieUri ? (
+                  <View style={{ flex: 1 }}>
+                    <Image
+                      source={{ uri: captureSelfieUri }}
+                      style={{ flex: 1 }}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      className="absolute bottom-3 right-3 bg-white/90 px-4 py-2 rounded-xl"
+                      onPress={() => setCaptureSelfieUri(null)}
+                    >
+                      <Text className="text-[#1A3F75] font-bold text-xs">
+                        Retake
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : cameraPermission?.granted ? (
+                  <View
+                    style={{
+                      width: Dimensions.get("window").width - 40,
+                      height: 300,
+                      position: "relative",
+                    }}
+                  >
+                    {showCaptureModal && (
+                      <CameraView
+                        ref={cameraRef}
+                        style={{
+                          width: Dimensions.get("window").width - 40,
+                          height: 300,
+                        }}
+                        facing="front"
+                      />
+                    )}
+                    <TouchableOpacity
+                      className="absolute bottom-4 self-center w-16 h-16 rounded-full bg-white border-4 border-[#1A3F75] items-center justify-center shadow-lg"
+                      onPress={takeCapturePhoto}
+                    >
+                      <View className="w-12 h-12 rounded-full bg-[#1A3F75]" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View className="flex-1 items-center justify-center">
+                    <MaterialIcons name="camera-alt" size={40} color="#9CA3AF" />
+                    <Text className="text-gray-400 mt-2 text-sm">
+                      Camera permission required
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Location Section */}
+            <ScrollView className="px-5 mt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+              <View className="mb-4">
+                <Text className="text-[12px] font-bold text-gray-400 uppercase mb-2 tracking-wider">
+                  Location Status
+                </Text>
+                <View className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100/50">
+                  {captureLocationLoading ? (
+                    <View className="flex-row items-center">
+                      <ActivityIndicator size="small" color="#1A3F75" />
+                      <Text className="ml-3 text-[#1A3F75] font-medium text-[14px]">
+                        Capturing precise location...
+                      </Text>
+                    </View>
+                  ) : captureLocation ? (
+                    <View>
+                      <View className="flex-row items-center mb-1">
+                        <MaterialIcons name="location-on" size={18} color="#059669" />
+                        <Text className="ml-2 text-green-700 font-bold text-[14px]">
+                          Location captured successfully
+                        </Text>
+                      </View>
+                      <Text className="text-gray-500 text-[12px] ml-6">
+                        Lat: {captureLocation.lat.toFixed(6)}, Lng: {captureLocation.lng.toFixed(6)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center">
+                      <MaterialIcons name="location-off" size={18} color="#DC2626" />
+                      <Text className="ml-2 text-red-600 font-bold text-[14px]">
+                        Unable to capture location
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Submit Button */}
+              <View
+                className="px-5 pt-3"
+                style={{
+                  paddingBottom: Platform.OS === "ios" ? insets.bottom + 10 : insets.bottom + 20,
+                }}
+              >
+                <TouchableOpacity
+                  className={`py-4 rounded-2xl items-center shadow-sm ${
+                    captureSelfieUri && captureLocation ? "bg-[#1A3F75]" : "bg-gray-200"
+                  }`}
+                  onPress={submitOrderWithCapture}
+                  disabled={isOrderSubmitting || !captureSelfieUri || !captureLocation}
+                >
+                  {isOrderSubmitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text
+                      className={`text-[16px] font-bold ${!captureSelfieUri || !captureLocation ? "text-gray-400" : "text-white"}`}
+                    >
+                      Confirm & Place Order
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <StatusModal
         visible={modalConfig.visible}
