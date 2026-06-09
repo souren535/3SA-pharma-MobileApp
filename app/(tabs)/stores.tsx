@@ -41,7 +41,10 @@ export default function StoresScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { shops, fetchShops, isLoading } = useShopStore();
-  const { routes, fetchRoutes } = useRouteStore();
+  const { routes, fetchRoutes, selectedRouteId } = useRouteStore();
+
+  const selectedRoute = useMemo(() => routes.find(r => r.id === selectedRouteId), [routes, selectedRouteId]);
+  const routeAreas = selectedRoute?.areas || [];
 
   const now = new Date();
   const [selectedDate, setSelectedDate] = useState(getLocalDateString(now));
@@ -54,9 +57,9 @@ export default function StoresScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Route filter state
-  const [showRouteFilter, setShowRouteFilter] = useState(false);
-  const [selectedRouteIds, setSelectedRouteIds] = useState<Set<number>>(new Set());
+  // Area filter state
+  const [showAreaFilter, setShowAreaFilter] = useState(false);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<Set<number>>(new Set());
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -93,38 +96,43 @@ export default function StoresScreen() {
     }, [fetchShops, fetchRoutes])
   );
 
-  const toggleRouteFilter = (routeId: number) => {
-    setSelectedRouteIds(prev => {
+  const toggleAreaFilter = (areaId: number) => {
+    setSelectedAreaIds(prev => {
       const next = new Set(prev);
-      if (next.has(routeId)) {
-        next.delete(routeId);
+      if (next.has(areaId)) {
+        next.delete(areaId);
       } else {
-        next.add(routeId);
+        next.add(areaId);
       }
       return next;
     });
   };
 
-  const clearRouteFilter = () => {
-    setSelectedRouteIds(new Set());
+  const clearAreaFilter = () => {
+    setSelectedAreaIds(new Set());
   };
 
-  // Filter shops by search and selected routes
+  // Filter shops by search and selected areas
   const filteredShops = useMemo(() => {
     let result = shops;
+
+    // Filter by selected route (implicit for the store tab)
+    if (selectedRouteId) {
+      result = result.filter(shop => (shop.route?.id || shop.route_id) === selectedRouteId);
+    }
 
     // Filter by search query
     if (searchQuery) {
       result = result.filter(shop => shop.shop_name?.toLowerCase().includes(searchQuery.toLowerCase()));
     }
 
-    // Filter by selected routes
-    if (selectedRouteIds.size > 0) {
-      result = result.filter(shop => selectedRouteIds.has(shop.route?.id || shop.route_id));
+    // Filter by selected areas
+    if (selectedAreaIds.size > 0) {
+      result = result.filter(shop => selectedAreaIds.has(shop.area?.id || shop.area_id));
     }
 
     return result;
-  }, [shops, selectedDate, searchQuery, selectedRouteIds]);
+  }, [shops, selectedDate, searchQuery, selectedAreaIds, selectedRouteId]);
 
   return (
     <View style={styles.container}>
@@ -169,15 +177,15 @@ export default function StoresScreen() {
               >
                 <Ionicons name={showSearch ? "close" : "search"} size={20} color="#1E293B" />
               </TouchableOpacity>
-              {/* Route Filter Button */}
+              {/* Area Filter Button */}
               <TouchableOpacity
-                className={`w-10 h-10 rounded-full items-center justify-center shadow-sm ${selectedRouteIds.size > 0 ? 'bg-[#1A3F75]' : 'bg-white'}`}
-                onPress={() => setShowRouteFilter(true)}
+                className={`w-10 h-10 rounded-full items-center justify-center shadow-sm ${selectedAreaIds.size > 0 ? 'bg-[#1A3F75]' : 'bg-white'}`}
+                onPress={() => setShowAreaFilter(true)}
               >
-                <Ionicons name="filter" size={20} color={selectedRouteIds.size > 0 ? 'white' : '#1E293B'} />
-                {selectedRouteIds.size > 0 && (
+                <Ionicons name="filter" size={20} color={selectedAreaIds.size > 0 ? 'white' : '#1E293B'} />
+                {selectedAreaIds.size > 0 && (
                   <View className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full items-center justify-center border border-white">
-                    <Text className="text-white text-[9px] font-bold">{selectedRouteIds.size}</Text>
+                    <Text className="text-white text-[9px] font-bold">{selectedAreaIds.size}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -249,25 +257,25 @@ export default function StoresScreen() {
       </View>
       )}
 
-      {/* Active Route Filter Chips */}
-      {selectedRouteIds.size > 0 && (
+      {/* Active Area Filter Chips */}
+      {selectedAreaIds.size > 0 && (
         <View className="bg-[#F3F6F8] px-4 pt-2 pb-1">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {routes
-              .filter(r => selectedRouteIds.has(r.id))
-              .map(route => (
+            {routeAreas
+              .filter(a => selectedAreaIds.has(a.id))
+              .map(area => (
                 <TouchableOpacity
-                  key={route.id}
+                  key={area.id}
                   className="flex-row items-center bg-[#1A3F75] rounded-full px-3 py-1.5 mr-2"
-                  onPress={() => toggleRouteFilter(route.id)}
+                  onPress={() => toggleAreaFilter(area.id)}
                 >
-                  <Text className="text-white text-xs font-bold mr-1.5">{route.name}</Text>
+                  <Text className="text-white text-xs font-bold mr-1.5">{area.name}</Text>
                   <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.8)" />
                 </TouchableOpacity>
               ))}
             <TouchableOpacity
               className="flex-row items-center bg-gray-200 rounded-full px-3 py-1.5"
-              onPress={clearRouteFilter}
+              onPress={clearAreaFilter}
             >
               <Text className="text-gray-600 text-xs font-bold">Clear All</Text>
             </TouchableOpacity>
@@ -345,7 +353,7 @@ export default function StoresScreen() {
                     <Text className="text-[11px] text-[#64748B] ml-1.5 font-medium">{item.category}</Text>
                     <Text className="text-[10px] text-gray-400 mx-2">|</Text>
                     <Ionicons name="map-outline" size={12} color="#64748B" />
-                    <Text className="text-[11px] text-[#64748B] ml-1 font-medium" numberOfLines={1}>{item.route.name}</Text>
+                    <Text className="text-[11px] text-[#64748B] ml-1 font-medium" numberOfLines={1}>{item.area?.name || item.route?.name}</Text>
                   </View>
                   <View className="flex-row items-center mt-1">
                     <Feather name="phone" size={12} color="#64748B" />
@@ -365,9 +373,9 @@ export default function StoresScreen() {
             </View>
             <Text className="text-gray-800 text-lg font-bold mb-1">No Stores Found</Text>
             <Text className="text-gray-500 text-center">
-              {selectedRouteIds.size > 0
-                ? 'No stores found for the selected routes. Try changing your filter.'
-                : 'There are no stores listed for this region or date yet.'}
+              {selectedAreaIds.size > 0
+                ? 'No stores found for the selected areas. Try changing your filter.'
+                : 'There are no stores listed for this route or date yet.'}
             </Text>
           </View>
         )}
@@ -383,26 +391,26 @@ export default function StoresScreen() {
       </>
       )}
 
-      {/* Route Filter Modal */}
-      <Modal visible={showRouteFilter} animationType="slide" transparent>
+      {/* Area Filter Modal */}
+      <Modal visible={showAreaFilter} animationType="slide" transparent>
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-white rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 20 }}>
             <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-xl font-bold text-[#1A3F75]">Filter by Route</Text>
-              <TouchableOpacity onPress={() => setShowRouteFilter(false)}>
+              <Text className="text-xl font-bold text-[#1A3F75]">Filter by Area</Text>
+              <TouchableOpacity onPress={() => setShowAreaFilter(false)}>
                 <Ionicons name="close-circle" size={30} color="#94A3B8" />
               </TouchableOpacity>
             </View>
-            <Text className="text-gray-500 text-xs mb-4">Select routes to show only their stores</Text>
+            <Text className="text-gray-500 text-xs mb-4">Select areas to show only their stores</Text>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
-              {routes.map((route) => {
-                const isSelected = selectedRouteIds.has(route.id);
+              {routeAreas.map((area) => {
+                const isSelected = selectedAreaIds.has(area.id);
                 return (
                   <TouchableOpacity
-                    key={route.id}
+                    key={area.id}
                     className={`flex-row items-center p-4 rounded-2xl mb-3 ${isSelected ? 'bg-[#EFF6FF] border border-[#BFDBFE]' : 'bg-gray-50 border border-gray-100'}`}
-                    onPress={() => toggleRouteFilter(route.id)}
+                    onPress={() => toggleAreaFilter(area.id)}
                   >
                     {/* Checkbox */}
                     <View
@@ -419,10 +427,7 @@ export default function StoresScreen() {
 
                     <View className="flex-1">
                       <Text className={`text-[15px] font-bold ${isSelected ? 'text-[#1A3F75]' : 'text-gray-700'}`}>
-                        {route.name}
-                      </Text>
-                      <Text className="text-xs text-gray-400 mt-0.5">
-                        {route.areas?.length || 0} Areas
+                        {area.name}
                       </Text>
                     </View>
 
@@ -432,6 +437,9 @@ export default function StoresScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {routeAreas.length === 0 && (
+                <Text className="text-gray-500 text-center py-4">No areas found for this route.</Text>
+              )}
             </ScrollView>
 
             {/* Action Buttons */}
@@ -439,18 +447,18 @@ export default function StoresScreen() {
               <TouchableOpacity
                 className="flex-1 py-3.5 rounded-2xl bg-gray-100 items-center"
                 onPress={() => {
-                  clearRouteFilter();
-                  setShowRouteFilter(false);
+                  clearAreaFilter();
+                  setShowAreaFilter(false);
                 }}
               >
                 <Text className="text-gray-600 font-bold text-[14px]">Clear All</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 className="flex-1 py-3.5 rounded-2xl bg-[#1A3F75] items-center"
-                onPress={() => setShowRouteFilter(false)}
+                onPress={() => setShowAreaFilter(false)}
               >
                 <Text className="text-white font-bold text-[14px]">
-                  Apply {selectedRouteIds.size > 0 ? `(${selectedRouteIds.size})` : ''}
+                  Apply {selectedAreaIds.size > 0 ? `(${selectedAreaIds.size})` : ''}
                 </Text>
               </TouchableOpacity>
             </View>

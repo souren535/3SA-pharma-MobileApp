@@ -120,7 +120,7 @@ export default function AssignedRoutesScreen() {
               {isLockedToday
                 ? 'Route locked for today'
                 : hasMultipleRoutes
-                  ? 'Select your active route'
+                  ? 'Select your route'
                   : 'View your assigned route'}
             </Text>
           </View>
@@ -235,8 +235,8 @@ export default function AssignedRoutesScreen() {
                     )}
                     {isCurrentlyActive && isSelected && isLockedToday ? null : (
                       !isSelected && (
-                        <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 mr-2">
-                          <Text className="text-[11px] font-bold text-emerald-600 uppercase">Active</Text>
+                        <View className="bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 mr-2">
+                          <Text className="text-[11px] font-bold text-[#1A3F75] uppercase">Select</Text>
                         </View>
                       )
                     )}
