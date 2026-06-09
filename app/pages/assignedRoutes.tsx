@@ -10,7 +10,7 @@ import { StatusModal } from '../../components/ui/status-modal';
 export default function AssignedRoutesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { routes, selectedRouteId, selectRoute, isLockedToday, loadRouteState } = useRouteStore();
+  const { allRoutes, routes, selectedRouteId, selectRoute, isLockedToday, loadRouteState, fetchAllRoutes, fetchRoutes } = useRouteStore();
   const [expandedRoutes, setExpandedRoutes] = useState<Set<number>>(new Set());
   const [localSelectedId, setLocalSelectedId] = useState<number | null>(selectedRouteId);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,9 +21,10 @@ export default function AssignedRoutesScreen() {
     message: '',
   });
 
-  // Load persisted lock state on mount
+  // Load persisted lock state and fetch all routes on mount
   useEffect(() => {
     loadRouteState();
+    fetchAllRoutes();
   }, []);
 
   // Sync localSelectedId when store changes (e.g., after loadRouteState)
@@ -31,7 +32,7 @@ export default function AssignedRoutesScreen() {
     setLocalSelectedId(selectedRouteId);
   }, [selectedRouteId]);
 
-  const hasMultipleRoutes = routes.length > 1;
+  const hasMultipleRoutes = allRoutes.length > 1;
   const hasChanges = localSelectedId !== selectedRouteId && localSelectedId !== null;
 
   const toggleRoute = (routeId: number) => {
@@ -76,6 +77,8 @@ export default function AssignedRoutesScreen() {
     setIsSubmitting(true);
     try {
       await selectRoute(localSelectedId);
+      // Re-fetch assigned routes (without ?all=true) so home page shows the selected route
+      await fetchRoutes();
       setModalConfig({
         visible: true,
         type: 'success',
@@ -147,7 +150,7 @@ export default function AssignedRoutesScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: hasMultipleRoutes && !isLockedToday ? 120 : 40 }}
         showsVerticalScrollIndicator={false}
       >
-        {routes.length === 0 ? (
+        {allRoutes.length === 0 ? (
           <View className="py-20 items-center">
             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
               <MaterialIcons name="alt-route" size={40} color="#9CA3AF" />
@@ -155,7 +158,7 @@ export default function AssignedRoutesScreen() {
             <Text className="text-gray-500 font-medium">No assigned routes yet</Text>
           </View>
         ) : (
-          routes.map((route, idx) => {
+          allRoutes.map((route, idx) => {
             const isExpanded = expandedRoutes.has(route.id ?? idx);
             const isSelected = localSelectedId === route.id;
             const isCurrentlyActive = selectedRouteId === route.id;
@@ -167,16 +170,7 @@ export default function AssignedRoutesScreen() {
                 }`}
               >
                 {/* Route Header Row - Always visible */}
-                <TouchableOpacity
-                  onPress={() => {
-                    if (hasMultipleRoutes && !isLockedToday) {
-                      handleSelectRoute(route.id);
-                    } else if (isLockedToday && hasMultipleRoutes) {
-                      handleSelectRoute(route.id); // Will show locked modal
-                    }
-                    toggleRoute(route.id ?? idx);
-                  }}
-                  activeOpacity={0.7}
+                <View
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -240,7 +234,9 @@ export default function AssignedRoutesScreen() {
                         </View>
                       )
                     )}
-                    <View style={{
+                    <TouchableOpacity 
+                      onPress={() => toggleRoute(route.id ?? idx)}
+                      style={{
                       width: 28,
                       height: 28,
                       borderRadius: 14,
@@ -253,9 +249,9 @@ export default function AssignedRoutesScreen() {
                         size={20}
                         color="#64748B"
                       />
-                    </View>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
 
                 {/* Areas List - Collapsible */}
                 {isExpanded && (

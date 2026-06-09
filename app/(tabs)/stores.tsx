@@ -112,14 +112,10 @@ export default function StoresScreen() {
     setSelectedAreaIds(new Set());
   };
 
-  // Filter shops by search and selected areas
   const filteredShops = useMemo(() => {
-    let result = shops;
+    if (!selectedRouteId) return [];
 
-    // Filter by selected route (implicit for the store tab)
-    if (selectedRouteId) {
-      result = result.filter(shop => (shop.route?.id || shop.route_id) === selectedRouteId);
-    }
+    let result = shops.filter(shop => (shop.route?.id || shop.route_id) === selectedRouteId);
 
     // Filter by search query
     if (searchQuery) {
@@ -372,10 +368,12 @@ export default function StoresScreen() {
               <MaterialIcons name="storefront" size={40} color="#94A3B8" />
             </View>
             <Text className="text-gray-800 text-lg font-bold mb-1">No Stores Found</Text>
-            <Text className="text-gray-500 text-center">
+            <Text className="text-gray-500 text-center px-4">
               {selectedAreaIds.size > 0
                 ? 'No stores found for the selected areas. Try changing your filter.'
-                : 'There are no stores listed for this route or date yet.'}
+                : !selectedRouteId
+                  ? 'Please select a route from the Home page or Assigned Routes to view stores.'
+                  : 'There are no stores listed for this route yet.'}
             </Text>
           </View>
         )}

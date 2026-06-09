@@ -79,7 +79,7 @@ export default function HomeScreen() {
   const [showLottie, setShowLottie] = useState(true);
   const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
-  const { routes, fetchRoutes, loadRouteState } = useRouteStore();
+  const { routes, selectedRouteId, fetchRoutes, loadRouteState } = useRouteStore();
   const { user } = useAuthStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -719,18 +719,13 @@ export default function HomeScreen() {
               />
             }
           >
-            {/* Assigned Route Card */}
             {routes.length > 0 && (() => {
-              const selectedRouteId = useRouteStore.getState().selectedRouteId;
               const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
               return (
               <TouchableOpacity
-                activeOpacity={routes.length > 1 ? 0.7 : 1}
-                disabled={routes.length <= 1}
+                activeOpacity={0.7}
                 onPress={() => {
-                  if (routes.length > 1) {
-                    router.push("/pages/assignedRoutes");
-                  }
+                  router.push("/pages/assignedRoutes");
                 }}
                 className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10"
               >

@@ -1,4 +1,5 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -43,12 +44,16 @@ export default function PaymentScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
-  // Month Filter State
+  // Filter State
+  const [filterMode, setFilterMode] = useState<'day' | 'month' | 'year'>('month');
   const [selectedMonth, setSelectedMonth] = useState<{
     month: number;
     year: number;
   } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null); // YYYY-MM-DD
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [showDayPicker, setShowDayPicker] = useState(false);
 
   // Helper to extract year and month directly from the raw string to avoid Herme's date parsing and timezone shift bugs
   const extractYearAndMonth = (dateStr: any) => {
@@ -156,9 +161,10 @@ export default function PaymentScreen() {
         formattedDate === "INVALID DATE"
           ? String(rawDateStr).split(" ")[0]
           : formattedDate,
-      dateObj: dateObj, // Keep reference for filtering
+      dateObj: dateObj,
       rawYear: rawYear,
       rawMonth: rawMonth,
+      rawDay: String(rawDateStr).split(' ')[0] || '', // YYYY-MM-DD
       rawPaymentDate: rawDateStr,
       desc: `${item.payment_mode || "Cash"} Payment ${item.reference_no ? `(${item.reference_no})` : ""}`,
       store: storeName,
@@ -193,22 +199,24 @@ export default function PaymentScreen() {
   const lastPaymentDate =
     sortedPayments.length > 0 ? sortedPayments[0].date : "-";
 
-  // Apply search & month filtering on sortedPayments
+  // Apply search & filter on sortedPayments
   const filteredPayments = sortedPayments.filter((item) => {
-    // Search query filter
     const matchesSearch = item.store
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
 
-    // Month & Year filter
-    let matchesMonth = true;
+    let matchesFilter = true;
     if (selectedMonth) {
-      matchesMonth =
+      matchesFilter =
         item.rawMonth === selectedMonth.month &&
         item.rawYear === selectedMonth.year;
+    } else if (selectedDay) {
+      matchesFilter = item.rawDay === selectedDay;
+    } else if (selectedYear) {
+      matchesFilter = item.rawYear === selectedYear;
     }
 
-    return matchesSearch && matchesMonth;
+    return matchesSearch && matchesFilter;
   });
 
   // Calculate month-specific stats if selectedMonth is set
@@ -600,22 +608,27 @@ export default function PaymentScreen() {
               )}
             </View>
 
-            {/* Active Month Filter Indicator */}
-            {selectedMonth && (
+            {/* Active Filter Indicator */}
+            {(selectedMonth || selectedDay || selectedYear) && (
               <View className="mx-4 mb-3 flex-row items-center">
                 <View className="bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full flex-row items-center">
                   <MaterialIcons name="filter-list" size={14} color="#D97706" />
                   <Text className="text-[11px] font-bold text-[#D97706] ml-1 uppercase">
                     Filtered:{" "}
-                    {
-                      groupedMonths[selectedMonth.year]?.find(
-                        (m) => m.monthIndex === selectedMonth.month,
-                      )?.monthName
-                    }{" "}
-                    {selectedMonth.year}
+                    {selectedMonth
+                      ? `${groupedMonths[selectedMonth.year]?.find(
+                          (m) => m.monthIndex === selectedMonth.month,
+                        )?.monthName} ${selectedMonth.year}`
+                      : selectedDay
+                        ? selectedDay
+                        : `Year ${selectedYear}`}
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setSelectedMonth(null)}
+                    onPress={() => {
+                      setSelectedMonth(null);
+                      setSelectedDay(null);
+                      setSelectedYear(null);
+                    }}
                     className="ml-2 bg-amber-200/50 rounded-full p-0.5"
                   >
                     <Ionicons name="close" size={12} color="#D97706" />
@@ -625,7 +638,7 @@ export default function PaymentScreen() {
             )}
 
             <Text className="px-5 mb-4 text-gray-800 font-bold text-[16px]">
-              {selectedMonth || searchQuery
+              {selectedMonth || selectedDay || selectedYear || searchQuery
                 ? `Filtered Transactions (${filteredPayments.length})`
                 : "Recent Transactions"}
             </Text>
@@ -748,7 +761,7 @@ export default function PaymentScreen() {
         )}
       </View>
 
-      {/* ================= MONTH FILTER MODAL ================= */}
+       {/* ================= FILTER MODAL ================= */}
       <Modal
         visible={filterModalVisible}
         animationType="slide"
@@ -763,11 +776,12 @@ export default function PaymentScreen() {
           <View
             className="bg-white rounded-t-[28px] p-6 max-h-[70%]"
             style={{ paddingBottom: insets.bottom + 20 }}
+            onStartShouldSetResponder={() => true}
           >
             {/* Header */}
-            <View className="flex-row justify-between items-center mb-5">
+            <View className="flex-row justify-between items-center mb-4">
               <Text className="text-[17px] font-extrabold text-gray-900">
-                Select Month
+                Filter By
               </Text>
               <TouchableOpacity
                 onPress={() => setFilterModalVisible(false)}
@@ -777,67 +791,163 @@ export default function PaymentScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Filter Mode Tabs */}
+            <View className="flex-row bg-[#E2E8F0]/70 p-1 rounded-xl mb-4">
+              {(['day', 'month', 'year'] as const).map((mode) => (
+                <TouchableOpacity
+                  key={mode}
+                  onPress={() => setFilterMode(mode)}
+                  className={`flex-1 py-2.5 rounded-lg items-center justify-center ${filterMode === mode ? 'bg-[#1A3F75]' : ''}`}
+                >
+                  <Text className={`font-bold text-xs uppercase tracking-wider ${filterMode === mode ? 'text-white' : 'text-gray-600'}`}>
+                    {mode}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Reset filter option */}
+              {/* Clear Filter */}
               <TouchableOpacity
                 onPress={() => {
                   setSelectedMonth(null);
+                  setSelectedDay(null);
+                  setSelectedYear(null);
                   setFilterModalVisible(false);
                 }}
-                className={`py-3 px-4 rounded-xl mb-4 items-center flex-row justify-center border ${!selectedMonth ? "bg-[#1A3F75] border-transparent" : "bg-white border-gray-200"}`}
+                className={`py-3 px-4 rounded-xl mb-4 items-center flex-row justify-center border ${!selectedMonth && !selectedDay && !selectedYear ? "bg-[#1A3F75] border-transparent" : "bg-white border-gray-200"}`}
               >
-                <Text
-                  className={`font-bold text-sm ${!selectedMonth ? "text-white" : "text-gray-700"}`}
-                >
-                  ALL MONTHS
+                <Text className={`font-bold text-sm ${!selectedMonth && !selectedDay && !selectedYear ? "text-white" : "text-gray-700"}`}>
+                  CLEAR FILTER
                 </Text>
               </TouchableOpacity>
 
-              {/* Group months by Year */}
-              {Object.keys(groupedMonths)
-                .sort((a, b) => Number(b) - Number(a)) // Sort years descending
-                .map((yearStr) => {
-                  const year = Number(yearStr);
-                  const months = groupedMonths[year];
+              {/* ===== DAY MODE ===== */}
+              {filterMode === 'day' && (
+                <View className="items-center py-2">
+                  <Text className="text-gray-500 text-xs font-bold mb-3 uppercase tracking-wider">Select a date to filter</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowDayPicker(true)}
+                    className="bg-gray-50 border border-gray-200 rounded-xl py-4 px-6 flex-row items-center justify-center w-full"
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#1A3F75" />
+                    <Text className="text-[15px] font-bold text-gray-800 ml-3">
+                      {selectedDay
+                        ? parseDateSafely(selectedDay).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : 'Pick a date...'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDayPicker && (
+                    <DateTimePicker
+                      value={selectedDay ? parseDateSafely(selectedDay) : new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                      onChange={(event: any, date?: Date) => {
+                        setShowDayPicker(Platform.OS === 'ios');
+                        if (event.type === 'dismissed') {
+                          return;
+                        }
+                        if (date) {
+                          const yyyy = date.getFullYear();
+                          const mm = String(date.getMonth() + 1).padStart(2, '0');
+                          const dd = String(date.getDate()).padStart(2, '0');
+                          setSelectedDay(`${yyyy}-${mm}-${dd}`);
+                          setSelectedMonth(null);
+                          setSelectedYear(null);
+                          if (Platform.OS !== 'ios') {
+                            setFilterModalVisible(false);
+                          }
+                        }
+                      }}
+                    />
+                  )}
+                  {Platform.OS === 'ios' && selectedDay && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowDayPicker(false);
+                        setFilterModalVisible(false);
+                      }}
+                      className="bg-[#1A3F75] py-3 px-8 rounded-xl mt-4"
+                    >
+                      <Text className="text-white font-bold text-sm">Apply</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
-                  return (
-                    <View key={year} className="mb-4">
-                      {/* Year display like "2026 -------------------" */}
-                      <Text className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-3">
-                        {year} -----------------------------------
-                      </Text>
+              {/* ===== MONTH MODE ===== */}
+              {filterMode === 'month' && (
+                <>
+                  {Object.keys(groupedMonths)
+                    .sort((a, b) => Number(b) - Number(a))
+                    .map((yearStr) => {
+                      const year = Number(yearStr);
+                      const months = groupedMonths[year];
+                      return (
+                        <View key={year} className="mb-4">
+                          <Text className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-3">
+                            {year} -----------------------------------
+                          </Text>
+                          <View className="flex-row flex-wrap gap-2.5">
+                            {months.map((mObj, mIdx) => {
+                              const isSelected =
+                                selectedMonth?.month === mObj.monthIndex &&
+                                selectedMonth?.year === mObj.year;
+                              return (
+                                <TouchableOpacity
+                                  key={`${mObj.monthName}-${mIdx}`}
+                                  onPress={() => {
+                                    setSelectedMonth({ month: mObj.monthIndex, year: mObj.year });
+                                    setSelectedDay(null);
+                                    setSelectedYear(null);
+                                    setFilterModalVisible(false);
+                                  }}
+                                  style={{ width: "48%" }}
+                                  className={`py-3.5 px-4 rounded-xl border items-center justify-center ${isSelected ? "bg-[#1A3F75] border-transparent" : "bg-gray-50 border-gray-200"}`}
+                                >
+                                  <Text className={`font-extrabold text-xs uppercase tracking-wider ${isSelected ? "text-white" : "text-gray-700"}`}>
+                                    {mObj.monthName}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })}
+                </>
+              )}
 
-                      {/* Month Buttons inside grid */}
-                      <View className="flex-row flex-wrap gap-2.5">
-                        {months.map((mObj, mIdx) => {
-                          const isSelected =
-                            selectedMonth?.month === mObj.monthIndex &&
-                            selectedMonth?.year === mObj.year;
-                          return (
-                            <TouchableOpacity
-                              key={`${mObj.monthName}-${mIdx}`}
-                              onPress={() => {
-                                setSelectedMonth({
-                                  month: mObj.monthIndex,
-                                  year: mObj.year,
-                                });
-                                setFilterModalVisible(false);
-                              }}
-                              style={{ width: "48%" }}
-                              className={`py-3.5 px-4 rounded-xl border items-center justify-center ${isSelected ? "bg-[#1A3F75] border-transparent" : "bg-gray-50 border-gray-200"}`}
-                            >
-                              <Text
-                                className={`font-extrabold text-xs uppercase tracking-wider ${isSelected ? "text-white" : "text-gray-700"}`}
-                              >
-                                {mObj.monthName}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  );
-                })}
+              {/* ===== YEAR MODE ===== */}
+              {filterMode === 'year' && (() => {
+                const uniqueYears = Array.from(new Set(paymentsList.map(p => p.rawYear))).sort((a, b) => b - a);
+                return uniqueYears.length > 0 ? (
+                  <View className="flex-row flex-wrap gap-2.5">
+                    {uniqueYears.map((yr) => {
+                      const isActive = selectedYear === yr;
+                      return (
+                        <TouchableOpacity
+                          key={yr}
+                          onPress={() => {
+                            setSelectedYear(yr);
+                            setSelectedMonth(null);
+                            setSelectedDay(null);
+                            setFilterModalVisible(false);
+                          }}
+                          style={{ width: '48%' }}
+                          className={`py-3.5 px-4 rounded-xl border items-center justify-center ${isActive ? "bg-[#1A3F75] border-transparent" : "bg-gray-50 border-gray-200"}`}
+                        >
+                          <Text className={`font-extrabold text-xs uppercase tracking-wider ${isActive ? "text-white" : "text-gray-700"}`}>
+                            {yr}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text className="text-gray-400 text-center text-sm py-6">No payment years available</Text>
+                );
+              })()}
             </ScrollView>
           </View>
         </TouchableOpacity>

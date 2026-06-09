@@ -96,16 +96,19 @@ const getTodayIST = () => {
 
 interface RouteStore {
   routes: Route[];
+  allRoutes: Route[];
   selectedRouteId: number | null;
   routeLockedDate: string | null; // YYYY-MM-DD when the route was last submitted
   isLockedToday: boolean;
   fetchRoutes: () => Promise<void>;
+  fetchAllRoutes: () => Promise<void>;
   selectRoute: (routeId: number) => Promise<void>;
   loadRouteState: () => Promise<void>;
 }
 
 export const useRouteStore = create<RouteStore>((set, get) => ({
   routes: [],
+  allRoutes: [],
   selectedRouteId: null,
   routeLockedDate: null,
   isLockedToday: false,
@@ -134,6 +137,14 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
       }
     } catch (error) {
       console.log('Error fetching assigned routes:', error);
+    }
+  },
+  fetchAllRoutes: async () => {
+    try {
+      const response = await API.get('/location/assigned-routes?all=true');
+      set({ allRoutes: response.data });
+    } catch (error) {
+      console.log('Error fetching all routes:', error);
     }
   },
   selectRoute: async (routeId: number) => {
@@ -276,11 +287,7 @@ interface OrderStore {
   isLoading: boolean;
   fetchAllOrders: () => Promise<void>;
   fetchShopOrders: (shopId: number | string) => Promise<void>;
-  createOrder: (payload: {
-    shop_id: number | string;
-    items: Array<{ product_id: number; quantity: number }>;
-    notes?: string;
-  }) => Promise<any>;
+  createOrder: (payload: any) => Promise<any>;
 }
 
 export const useOrderStore = create<OrderStore>((set, get) => ({
@@ -339,7 +346,11 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   createOrder: async (payload) => {
     set({ isLoading: true });
     try {
-      const response = await API.post('/orders', payload);
+      let headers = {};
+      if (payload instanceof FormData) {
+        headers = { "Content-Type": "multipart/form-data" };
+      }
+      const response = await API.post('/orders', payload, { headers });
 
       // Attempt to immediately inject the new order into the local list
       const newOrder = response.data?.order || response.data?.data || response.data;
@@ -353,13 +364,26 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         // Also inject into shopOrders if it matches the current shop
         const currentShopOrders = get().shopOrders;
         if (!currentShopOrders.some(o => o.id === newOrder.id)) {
-          // Verify it's the correct shop or just safely prepend it assuming the user is looking at the shop they just ordered from
           set({ shopOrders: [newOrder, ...currentShopOrders] });
         }
       }
 
       await get().fetchAllOrders();
-      await get().fetchShopOrders(payload.shop_id);
+      // Wait, shop_id could be in FormData, extract it
+      let shopId = null;
+      if (payload instanceof FormData) {
+        const anyPayload = payload as any;
+        const parts = anyPayload.getParts?.();
+        if (parts) {
+          const shopPart = parts.find((p: any) => p.fieldName === 'shop_id');
+          if (shopPart) shopId = shopPart.string;
+        }
+      } else {
+        shopId = payload.shop_id;
+      }
+      if (shopId) {
+        await get().fetchShopOrders(shopId);
+      }
       return response.data;
     } finally {
       set({ isLoading: false });

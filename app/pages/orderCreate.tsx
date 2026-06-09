@@ -275,24 +275,28 @@ export default function OrderCreateScreen() {
       return;
     }
 
-    setShowCaptureModal(false);
+    const formData = new FormData();
+    formData.append("shop_id", String(selectedStoreId || storeIdParam));
+    if (note) formData.append("notes", note);
+    formData.append("latitude", String(captureLocation.lat));
+    formData.append("longitude", String(captureLocation.lng));
+    
+    cart.forEach((item, index) => {
+      formData.append(`items[${index}][product_id]`, String(item.id));
+      formData.append(`items[${index}][quantity]`, String(item.qty));
+    });
 
-    const payload = {
-      shop_id: selectedStoreId || parseInt(storeIdParam),
-      items: cart.map((item) => ({
-        product_id: item.id,
-        quantity: item.qty,
-      })),
-      notes: note,
-      // TODO: Send image_url and location when API supports it
-      // image_url: captureSelfieUri,
-      latitude: String(captureLocation.lat),
-      longitude: String(captureLocation.lng),
-    };
+    if (captureSelfieUri) {
+      formData.append("image", {
+        uri: captureSelfieUri,
+        type: "image/jpeg",
+        name: "order.jpg",
+      } as any);
+    }
 
     try {
-      await createOrder(payload);
-      useDashboardStore.getState().markStoreAsVisitedLocally(payload.shop_id);
+      await createOrder(formData);
+      useDashboardStore.getState().markStoreAsVisitedLocally(selectedStoreId || parseInt(storeIdParam));
       setModalConfig({
         visible: true,
         type: "success",

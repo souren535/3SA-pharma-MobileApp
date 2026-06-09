@@ -1140,7 +1140,11 @@ export default function StoreInfoScreen() {
 
       {/* ===== VISIT TYPE SELECTION MODAL ===== */}
       <Modal visible={showVisitTypeModal} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center items-center px-5">
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View className="flex-1 bg-black/50 justify-center items-center px-5">
           <View className="bg-white rounded-3xl w-full p-6 shadow-xl">
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-lg font-bold text-gray-800">
@@ -1161,53 +1165,71 @@ export default function StoreInfoScreen() {
               Select Visit Purpose
             </Text>
 
-            {VISIT_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type.value}
-                className={`flex-row items-center p-3.5 rounded-xl mb-2 border ${
-                  selectedVisitType === type.value
-                    ? 'bg-[#EFF6FF] border-[#BFDBFE]'
-                    : 'bg-gray-50 border-gray-100'
-                }`}
-                onPress={() => setSelectedVisitType(type.value)}
-              >
-                <View
-                  className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
-                    selectedVisitType === type.value ? 'bg-[#1A3F75]' : 'bg-gray-200'
-                  }`}
-                >
-                  <MaterialIcons
-                    name={type.icon as any}
-                    size={18}
-                    color={selectedVisitType === type.value ? 'white' : '#64748B'}
-                  />
+            {selectedVisitType === 'other' ? (
+              <View>
+                <View className="flex-row items-center p-3.5 rounded-xl mb-2 border bg-[#EFF6FF] border-[#BFDBFE]">
+                  <View className="w-9 h-9 rounded-full items-center justify-center mr-3 bg-[#1A3F75]">
+                    <MaterialIcons name="edit" size={18} color="white" />
+                  </View>
+                  <Text className="flex-1 text-[14px] font-bold text-[#1A3F75]">
+                    Other
+                  </Text>
+                  <TouchableOpacity
+                    className="bg-white px-3 py-1 rounded-full border border-[#1A3F75]"
+                    onPress={() => {
+                      setSelectedVisitType(null);
+                      setOtherVisitNote("");
+                    }}
+                  >
+                    <Text className="text-[12px] font-bold text-[#1A3F75]">Change</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text
-                  className={`flex-1 text-[14px] font-bold ${
-                    selectedVisitType === type.value ? 'text-[#1A3F75]' : 'text-gray-700'
+                <TextInput
+                  className="bg-gray-50 rounded-xl p-4 text-[14px] text-gray-800 border border-gray-200 mt-2 mb-2"
+                  placeholder="Describe your visit purpose..."
+                  placeholderTextColor="#9CA3AF"
+                  value={otherVisitNote}
+                  onChangeText={setOtherVisitNote}
+                  multiline
+                  numberOfLines={3}
+                  style={{ minHeight: 80, textAlignVertical: "top" }}
+                  autoFocus
+                />
+              </View>
+            ) : (
+              VISIT_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  className={`flex-row items-center p-3.5 rounded-xl mb-2 border ${
+                    selectedVisitType === type.value
+                      ? 'bg-[#EFF6FF] border-[#BFDBFE]'
+                      : 'bg-gray-50 border-gray-100'
                   }`}
+                  onPress={() => setSelectedVisitType(type.value)}
                 >
-                  {type.label}
-                </Text>
-                {selectedVisitType === type.value && (
-                  <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />
-                )}
-              </TouchableOpacity>
-            ))}
-
-            {/* Other text input */}
-            {selectedVisitType === 'other' && (
-              <TextInput
-                className="bg-gray-50 rounded-xl p-4 text-[14px] text-gray-800 border border-gray-200 mt-2 mb-2"
-                placeholder="Describe your visit purpose..."
-                placeholderTextColor="#9CA3AF"
-                value={otherVisitNote}
-                onChangeText={setOtherVisitNote}
-                multiline
-                numberOfLines={3}
-                style={{ minHeight: 80, textAlignVertical: "top" }}
-                autoFocus
-              />
+                  <View
+                    className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
+                      selectedVisitType === type.value ? 'bg-[#1A3F75]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <MaterialIcons
+                      name={type.icon as any}
+                      size={18}
+                      color={selectedVisitType === type.value ? 'white' : '#64748B'}
+                    />
+                  </View>
+                  <Text
+                    className={`flex-1 text-[14px] font-bold ${
+                      selectedVisitType === type.value ? 'text-[#1A3F75]' : 'text-gray-700'
+                    }`}
+                  >
+                    {type.label}
+                  </Text>
+                  {selectedVisitType === type.value && (
+                    <Ionicons name="checkmark-circle" size={22} color="#1A3F75" />
+                  )}
+                </TouchableOpacity>
+              ))
             )}
 
             <TouchableOpacity
@@ -1262,6 +1284,7 @@ export default function StoreInfoScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ===== VISIT SELFIE & LOCATION CAPTURE MODAL ===== */}
@@ -1417,14 +1440,22 @@ export default function StoreInfoScreen() {
                         ? otherVisitNote
                         : VISIT_TYPES.find(v => v.value === selectedVisitType)?.label || selectedVisitType;
 
-                      await API.post("/orders/visits", {
-                        shop_id: parseInt(storeId),
-                        visit_type: selectedVisitType,
-                        notes: visitNote,
-                        latitude: String(visitLocation.lat),
-                        longitude: String(visitLocation.lng),
-                        // TODO: Send image_url when API supports it
-                        // image_url: visitSelfieUri,
+                      const formData = new FormData();
+                      formData.append("shop_id", storeId);
+                      formData.append("visit_type", "nil");
+                      formData.append("notes", visitNote);
+                      formData.append("latitude", String(visitLocation.lat));
+                      formData.append("longitude", String(visitLocation.lng));
+                      if (visitSelfieUri) {
+                        formData.append("image", {
+                          uri: visitSelfieUri,
+                          type: "image/jpeg",
+                          name: "visit.jpg",
+                        } as any);
+                      }
+
+                      await API.post("/orders/visits", formData, {
+                        headers: { "Content-Type": "multipart/form-data" },
                       });
 
                       setShowVisitCaptureModal(false);
@@ -1433,11 +1464,14 @@ export default function StoreInfoScreen() {
                       setSelectedVisitType(null);
                       setOtherVisitNote("");
                       showPopup("Success", "Visit recorded successfully!");
-                    } catch (error) {
-                      console.error("Failed to submit visit:", error);
+                    } catch (error: any) {
+                      console.error("Failed to submit visit:", error.response?.data || error.message);
+                      const errorMsg = error.response?.data?.message || 
+                                     (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) || 
+                                     "Failed to record visit. Please try again.";
                       showPopup(
                         "Error",
-                        "Failed to record visit. Please try again.",
+                        errorMsg
                       );
                     } finally {
                       setIsSubmittingNote(false);
@@ -1510,22 +1544,28 @@ export default function StoreInfoScreen() {
                       lng = location.coords.longitude.toString();
                     }
 
-                    await API.post("/orders/visits", {
-                      shop_id: parseInt(storeId),
-                      visit_type: "nil",
-                      notes: visitNoteText,
-                      latitude: lat,
-                      longitude: lng,
+                    const formData = new FormData();
+                    formData.append("shop_id", storeId);
+                    formData.append("visit_type", "other");
+                    formData.append("notes", visitNoteText);
+                    formData.append("latitude", lat);
+                    formData.append("longitude", lng);
+
+                    await API.post("/orders/visits", formData, {
+                      headers: { "Content-Type": "multipart/form-data" },
                     });
 
                     setShowVisitNoteModal(false);
                     setVisitNoteText("");
                     showPopup("Success", "Visit note submitted successfully!");
-                  } catch (error) {
-                    console.error("Failed to submit visit note:", error);
+                  } catch (error: any) {
+                    console.error("Failed to submit visit note:", error.response?.data || error.message);
+                    const errorMsg = error.response?.data?.message || 
+                                   (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) || 
+                                   "Failed to submit visit note. Please try again.";
                     showPopup(
                       "Error",
-                      "Failed to submit visit note. Please try again.",
+                      errorMsg
                     );
                   } finally {
                     setIsSubmittingNote(false);
