@@ -79,7 +79,7 @@ export default function HomeScreen() {
   const [showLottie, setShowLottie] = useState(true);
   const [isNextStoreExpanded, setIsNextStoreExpanded] = useState(false);
   const { shops, fetchShops } = useShopStore();
-  const { routes, selectedRouteId, fetchRoutes, loadRouteState } = useRouteStore();
+  const { routes, selectedRouteId, noActiveRouteMessage, fetchRoutes, loadRouteState } = useRouteStore();
   const { user } = useAuthStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -719,58 +719,105 @@ export default function HomeScreen() {
               />
             }
           >
-            {routes.length > 0 && (() => {
-              const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
-              return (
+            {noActiveRouteMessage ? (
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
+                  if (!isWorking) {
+                    showPopup(
+                      "Attendance Required",
+                      "Please start your work day (mark attendance) first before selecting a route.",
+                      "info"
+                    );
+                    return;
+                  }
                   router.push("/pages/assignedRoutes");
                 }}
-                className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10"
+                className="flex-row items-center bg-amber-50 rounded-[18px] p-[18px] mb-2.5 border border-amber-200 shadow-sm"
               >
                 <View className="mr-3.5">
-                  <View className="w-[42px] h-[42px] rounded-[13px] bg-[#F5F3FF] justify-center items-center">
-                    <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
+                  <View className="w-[42px] h-[42px] rounded-[13px] bg-amber-100 justify-center items-center">
+                    <MaterialIcons name="alt-route" size={22} color="#D97706" />
                   </View>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[13px] font-semibold text-[#64748B] mb-1">
-                    {routes.length > 1 ? "Active Route" : "Assigned Route"}
+                  <Text className="text-[13px] font-bold text-amber-800 mb-1">
+                    Route Assignment Required
                   </Text>
-                  <View className="flex-row items-center flex-wrap">
-                    <Text className="text-[15px] font-extrabold text-[#1E293B]">
-                      {selectedRoute.name}
-                    </Text>
-                    {routes.length > 1 && (
-                      <View className="bg-[#EEF2F6] px-2.5 py-0.5 rounded-md ml-2 border border-[#E2E8F0]">
-                        <Text className="text-[12px] font-bold text-[#475569]">
-                          +{routes.length - 1} more
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View className="flex-row items-center mt-0.5">
-                    <MaterialIcons
-                      name="location-on"
-                      size={12}
-                      color="#94A3B8"
-                    />
-                    <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
-                      {selectedRoute.areas?.length || 0} Areas
-                    </Text>
-                  </View>
+                  <Text className="text-[12px] font-medium text-amber-600 leading-4">
+                    {noActiveRouteMessage}
+                  </Text>
                 </View>
-                {routes.length > 1 && (
+                {isWorking && (
                   <MaterialIcons
                     name="chevron-right"
                     size={22}
-                    color="#94A3B8"
+                    color="#D97706"
                   />
                 )}
               </TouchableOpacity>
-              );
-            })()}
+            ) : (
+              routes.length > 0 && (() => {
+                const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
+                return (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (!isWorking) {
+                      showPopup(
+                        "Attendance Required",
+                        "Please start your work day (mark attendance) first to manage routes.",
+                        "info"
+                      );
+                      return;
+                    }
+                    router.push("/pages/assignedRoutes");
+                  }}
+                  className="flex-row items-center bg-white rounded-[18px] p-[18px] mb-2.5 shadow-sm shadow-black/10"
+                >
+                  <View className="mr-3.5">
+                    <View className="w-[42px] h-[42px] rounded-[13px] bg-[#F5F3FF] justify-center items-center">
+                      <MaterialIcons name="alt-route" size={22} color="#7C3AED" />
+                    </View>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[13px] font-semibold text-[#64748B] mb-1">
+                      {routes.length > 1 ? "Active Route" : "Assigned Route"}
+                    </Text>
+                    <View className="flex-row items-center flex-wrap">
+                      <Text className="text-[15px] font-extrabold text-[#1E293B]">
+                        {selectedRoute.name}
+                      </Text>
+                      {routes.length > 1 && (
+                        <View className="bg-[#EEF2F6] px-2.5 py-0.5 rounded-md ml-2 border border-[#E2E8F0]">
+                          <Text className="text-[12px] font-bold text-[#475569]">
+                            +{routes.length - 1} more
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View className="flex-row items-center mt-0.5">
+                      <MaterialIcons
+                        name="location-on"
+                        size={12}
+                        color="#94A3B8"
+                      />
+                      <Text className="text-[12px] font-medium text-[#94A3B8] ml-0.5">
+                        {selectedRoute.areas?.length || 0} Areas
+                      </Text>
+                    </View>
+                  </View>
+                  {isWorking && routes.length > 1 && (
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={22}
+                      color="#94A3B8"
+                    />
+                  )}
+                </TouchableOpacity>
+                );
+              })()
+            )}
 
             {/* Visit Next Store — commented out, not needed right now */}
             {/* {unvisitedStores.length > 0 && (

@@ -4,13 +4,14 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouteStore } from '../../store/store';
+import { useRouteStore, useAttendanceStore } from '../../store/store';
 import { StatusModal } from '../../components/ui/status-modal';
 
 export default function AssignedRoutesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { allRoutes, routes, selectedRouteId, selectRoute, isLockedToday, loadRouteState, fetchAllRoutes, fetchRoutes } = useRouteStore();
+  const { isWorking } = useAttendanceStore();
   const [expandedRoutes, setExpandedRoutes] = useState<Set<number>>(new Set());
   const [localSelectedId, setLocalSelectedId] = useState<number | null>(selectedRouteId);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,11 +22,23 @@ export default function AssignedRoutesScreen() {
     message: '',
   });
 
-  // Load persisted lock state and fetch all routes on mount
+  // Check attendance status and fetch all routes
   useEffect(() => {
+    if (!isWorking) {
+      setModalConfig({
+        visible: true,
+        type: 'info',
+        title: 'Attendance Required',
+        message: 'Please mark your attendance first to select a route.',
+      });
+      const timer = setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
     loadRouteState();
     fetchAllRoutes();
-  }, []);
+  }, [isWorking]);
 
   // Sync localSelectedId when store changes (e.g., after loadRouteState)
   useEffect(() => {
@@ -48,6 +61,19 @@ export default function AssignedRoutesScreen() {
   };
 
   const handleSelectRoute = (routeId: number) => {
+    const targetRoute = allRoutes.find(r => r.id === routeId);
+    const isActiveByOther = targetRoute?.is_active_today && !targetRoute?.is_chosen_by_me;
+
+    if (isActiveByOther) {
+      setModalConfig({
+        visible: true,
+        type: 'info',
+        title: 'Route Locked',
+        message: `This route is currently locked by ${targetRoute?.active_salesman_today?.trim() || 'another salesman'} for today's operations.`,
+      });
+      return;
+    }
+
     if (isLockedToday) {
       setModalConfig({
         visible: true,
@@ -162,11 +188,16 @@ export default function AssignedRoutesScreen() {
             const isExpanded = expandedRoutes.has(route.id ?? idx);
             const isSelected = localSelectedId === route.id;
             const isCurrentlyActive = selectedRouteId === route.id;
+            const isActiveByOther = route.is_active_today && !route.is_chosen_by_me;
             return (
               <View
                 key={route.id || idx}
                 className={`bg-white mb-4 rounded-2xl shadow-sm overflow-hidden ${
-                  isSelected ? 'border-2 border-[#1A3F75]' : 'border border-gray-100'
+                  isSelected 
+                    ? 'border-2 border-[#1A3F75]' 
+                    : isActiveByOther
+                      ? 'border border-red-100 bg-gray-50/50 opacity-80'
+                      : 'border border-gray-100'
                 }`}
               >
                 {/* Route Header Row - Always visible */}
@@ -185,19 +216,22 @@ export default function AssignedRoutesScreen() {
                       <TouchableOpacity
                         onPress={() => handleSelectRoute(route.id)}
                         className="mr-3"
-                        disabled={isLockedToday}
+                        disabled={isLockedToday || isActiveByOther}
                       >
                         <View
                           className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
                             isSelected
                               ? 'border-[#1A3F75] bg-[#1A3F75]'
-                              : isLockedToday
+                              : isLockedToday || isActiveByOther
                                 ? 'border-gray-200 bg-gray-100'
                                 : 'border-gray-300 bg-white'
                           }`}
                         >
                           {isSelected && (
                             <Ionicons name="checkmark" size={16} color="white" />
+                          )}
+                          {isActiveByOther && !isSelected && (
+                            <MaterialIcons name="lock" size={12} color="#9CA3AF" />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -215,22 +249,26 @@ export default function AssignedRoutesScreen() {
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {isCurrentlyActive && isLockedToday && (
-                      <View className="bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 mr-2">
-                        <Text className="text-[11px] font-bold text-amber-700 uppercase">
-                          <MaterialIcons name="lock" size={10} color="#B45309" /> Locked
+                    {route.is_chosen_by_me ? (
+                      <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 mr-2 flex-row items-center">
+                        <Text className="text-[11px] font-bold text-emerald-700 uppercase flex-row items-center">
+                          <Ionicons name="checkmark-circle" size={10} color="#059669" /> Active
                         </Text>
                       </View>
-                    )}
-                    {isSelected && !isLockedToday && (
+                    ) : isActiveByOther ? (
+                      <View className="bg-red-50 px-2.5 py-1 rounded-full border border-red-200 mr-2 flex-row items-center max-w-[150px]">
+                        <Text className="text-[11px] font-bold text-red-700 uppercase flex-row items-center" numberOfLines={1}>
+                          <MaterialIcons name="lock" size={10} color="#DC2626" /> Locked by {route.active_salesman_today?.trim() || "other"}
+                        </Text>
+                      </View>
+                    ) : isSelected ? (
                       <View className="bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 mr-2">
                         <Text className="text-[11px] font-bold text-[#1A3F75] uppercase">Selected</Text>
                       </View>
-                    )}
-                    {isCurrentlyActive && isSelected && isLockedToday ? null : (
-                      !isSelected && (
-                        <View className="bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 mr-2">
-                          <Text className="text-[11px] font-bold text-[#1A3F75] uppercase">Select</Text>
+                    ) : (
+                      !isLockedToday && (
+                        <View className="bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200 mr-2">
+                          <Text className="text-[11px] font-bold text-gray-500 uppercase">Available</Text>
                         </View>
                       )
                     )}

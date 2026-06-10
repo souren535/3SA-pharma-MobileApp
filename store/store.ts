@@ -60,14 +60,21 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     const token = await AsyncStorage.getItem("token");
-    if (token) {
-      set({ token });
+    const refreshToken = await AsyncStorage.getItem("refresh_token");
+    if (token || refreshToken) {
+      if (token) {
+        set({ token });
+      }
       try {
-        const profile = await authService.getProfile();
+        const response = await API.get("/auth/me");
+        const profile = response.data?.profile || response.data?.user || response.data?.data || response.data;
         set({ user: profile, isAuthenticated: true });
-      } catch {
+      } catch (error) {
+        console.log("checkAuth with /auth/me failed:", error);
         get().reset();
       }
+    } else {
+      set({ isAuthenticated: false });
     }
     set({ isLoading: false });
   }
@@ -78,6 +85,9 @@ export interface Route {
   name: string;
   status: number;
   areas: Area[];
+  is_chosen_by_me?: boolean;
+  is_active_today?: boolean;
+  active_salesman_today?: string | null;
 }
 
 export interface Area {
@@ -100,9 +110,10 @@ interface RouteStore {
   selectedRouteId: number | null;
   routeLockedDate: string | null; // YYYY-MM-DD when the route was last submitted
   isLockedToday: boolean;
+  noActiveRouteMessage: string | null;
   fetchRoutes: () => Promise<void>;
   fetchAllRoutes: () => Promise<void>;
-  selectRoute: (routeId: number) => Promise<void>;
+  selectRoute: (routeId: number) => Promise<any>;
   loadRouteState: () => Promise<void>;
 }
 
@@ -112,6 +123,7 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
   selectedRouteId: null,
   routeLockedDate: null,
   isLockedToday: false,
+  noActiveRouteMessage: null,
   loadRouteState: async () => {
     try {
       const savedId = await AsyncStorage.getItem('selectedRouteId');
@@ -129,32 +141,75 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
   fetchRoutes: async () => {
     try {
       const response = await API.get('/location/assigned-routes');
-      set({ routes: response.data });
-      // Auto-select the first route if none is selected
-      const currentSelected = get().selectedRouteId;
-      if (!currentSelected && response.data.length > 0) {
-        set({ selectedRouteId: response.data[0].id });
+      if (response.data && response.data.status === 'no_active_route') {
+        set({
+          routes: [],
+          noActiveRouteMessage: response.data.message || "Please select a route for today's operations first.",
+          selectedRouteId: null,
+          isLockedToday: false,
+        });
+        await AsyncStorage.removeItem('selectedRouteId');
+        await AsyncStorage.removeItem('routeLockedDate');
+      } else {
+        const routesData = Array.isArray(response.data) ? response.data : [];
+        set({
+          routes: routesData,
+          noActiveRouteMessage: null,
+        });
+        // Check if any route in the list is already chosen/active
+        const chosenRoute = routesData.find((r: any) => r.is_chosen_by_me === true || r.is_chosen_by_me === 1);
+        if (chosenRoute) {
+          const today = getTodayIST();
+          set({
+            selectedRouteId: chosenRoute.id,
+            isLockedToday: true,
+            routeLockedDate: today,
+          });
+          await AsyncStorage.setItem('selectedRouteId', String(chosenRoute.id));
+          await AsyncStorage.setItem('routeLockedDate', today);
+        } else {
+          const currentSelected = get().selectedRouteId;
+          if (!currentSelected && routesData.length > 0) {
+            set({ selectedRouteId: routesData[0].id });
+          }
+        }
       }
     } catch (error) {
       console.log('Error fetching assigned routes:', error);
+      set({ routes: [], noActiveRouteMessage: null });
     }
   },
   fetchAllRoutes: async () => {
     try {
       const response = await API.get('/location/assigned-routes?all=true');
-      set({ allRoutes: response.data });
+      const allRoutes = response.data || [];
+      set({ allRoutes });
+
+      // Sync choice and lock state from the backend
+      const chosenRoute = allRoutes.find((r: any) => r.is_chosen_by_me === true || r.is_chosen_by_me === 1);
+      if (chosenRoute) {
+        const today = getTodayIST();
+        set({
+          selectedRouteId: chosenRoute.id,
+          isLockedToday: true,
+          routeLockedDate: today,
+        });
+        await AsyncStorage.setItem('selectedRouteId', String(chosenRoute.id));
+        await AsyncStorage.setItem('routeLockedDate', today);
+      }
     } catch (error) {
       console.log('Error fetching all routes:', error);
     }
   },
   selectRoute: async (routeId: number) => {
     // Call the real API
-    await API.post('/location/select-route', { route_id: routeId });
+    const response = await API.post('/location/select-route', { route_id: routeId });
 
     const today = getTodayIST();
     set({ selectedRouteId: routeId, routeLockedDate: today, isLockedToday: true });
     await AsyncStorage.setItem('selectedRouteId', String(routeId));
     await AsyncStorage.setItem('routeLockedDate', today);
+    return response.data;
   },
 }));
 

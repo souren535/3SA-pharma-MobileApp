@@ -1443,7 +1443,7 @@ export default function StoreInfoScreen() {
                       const formData = new FormData();
                       formData.append("shop_id", storeId);
                       formData.append("visit_type", "nil");
-                      formData.append("notes", visitNote);
+                      formData.append("notes", visitNote || "");
                       formData.append("latitude", String(visitLocation.lat));
                       formData.append("longitude", String(visitLocation.lng));
                       if (visitSelfieUri) {

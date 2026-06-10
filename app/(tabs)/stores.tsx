@@ -124,7 +124,10 @@ export default function StoresScreen() {
 
     // Filter by selected areas
     if (selectedAreaIds.size > 0) {
-      result = result.filter(shop => selectedAreaIds.has(shop.area?.id || shop.area_id));
+      result = result.filter(shop => {
+        const aId = shop.area?.id || shop.area_id;
+        return aId !== null && aId !== undefined ? selectedAreaIds.has(aId) : false;
+      });
     }
 
     return result;

@@ -92,8 +92,6 @@ API.interceptors.response.use(
         console.log("Token refresh failed, clearing session:", refreshError);
         processQueue(refreshError, null);
 
-        const hasRefreshToken = !!(await AsyncStorage.getItem("refresh_token"));
-        
         const clearSessionAndRedirect = async () => {
           await AsyncStorage.removeItem("token");
           await AsyncStorage.removeItem("refresh_token");
@@ -103,16 +101,7 @@ API.interceptors.response.use(
           try { router.replace("/(auth)"); } catch {}
         };
 
-        if (hasRefreshToken) {
-          Alert.alert(
-            "Session Expired",
-            "Your session has expired. Please log in again.",
-            [{ text: "OK", onPress: clearSessionAndRedirect }],
-            { cancelable: false }
-          );
-        } else {
-          await clearSessionAndRedirect();
-        }
+        await clearSessionAndRedirect();
 
         return Promise.reject(refreshError);
       } finally {
