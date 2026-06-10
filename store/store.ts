@@ -634,7 +634,8 @@ export const useAttendanceStore = create<AttendanceStore>((set) => ({
     const loggedOutToday = logoutDate === todayIST;
 
     if (val === 'true') {
-      const isPast8PM_IST = istDate.getHours() >= 20;
+      // const isPast8PM_IST = istDate.getHours() >= 20;
+      const isPast8PM_IST = false; // Disabled 8 PM auto-logout for test mode
       const isDifferentDay = checkInDate && checkInDate !== todayIST;
 
       // Auto-logout if it's past 8 PM IST or it's a new day

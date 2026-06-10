@@ -138,8 +138,9 @@ export default function HomeScreen() {
     React.useCallback(() => {
       fetchNotifications();
 
-      // Check 8 PM auto-logout rule when screen is focused
+      // Check 8 PM auto-logout rule when screen is focused (disabled for test mode)
       if (isWorking) {
+        /*
         const now = new Date();
         if (now.getHours() >= 20) {
           setIsWorking(false);
@@ -161,6 +162,7 @@ export default function HomeScreen() {
             "info",
           );
         }
+        */
         loadAttendanceState();
       }
     }, [isWorking]),
