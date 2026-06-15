@@ -66,12 +66,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         set({ token });
       }
       try {
-        const response = await API.get("/auth/me");
-        const profile = response.data?.profile || response.data?.user || response.data?.data || response.data;
+        // Fetch salesman profile first to get the correct SFA user info (like name)
+        const profile = await authService.getProfile();
         set({ user: profile, isAuthenticated: true });
       } catch (error) {
-        console.log("checkAuth with /auth/me failed:", error);
-        get().reset();
+        console.log("checkAuth with getProfile failed, trying /auth/me fallback:", error);
+        try {
+          const response = await API.get("/auth/me");
+          const profile = response.data?.profile || response.data?.user || response.data?.data || response.data;
+          set({ user: profile, isAuthenticated: true });
+        } catch (authMeError) {
+          console.log("checkAuth fallback with /auth/me also failed:", authMeError);
+          get().reset();
+        }
       }
     } else {
       set({ isAuthenticated: false });
@@ -174,31 +181,61 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error fetching assigned routes:', error);
-      set({ routes: [], noActiveRouteMessage: null });
+      const serverData = error.response?.data;
+      if (serverData && serverData.status === 'no_active_route') {
+        set({
+          routes: [],
+          noActiveRouteMessage: serverData.message || "Please select a route for today's operations first.",
+          selectedRouteId: null,
+          isLockedToday: false,
+        });
+        await AsyncStorage.removeItem('selectedRouteId');
+        await AsyncStorage.removeItem('routeLockedDate');
+      } else {
+        set({ routes: [], noActiveRouteMessage: null });
+      }
     }
   },
   fetchAllRoutes: async () => {
     try {
       const response = await API.get('/location/assigned-routes?all=true');
-      const allRoutes = response.data || [];
-      set({ allRoutes });
-
-      // Sync choice and lock state from the backend
-      const chosenRoute = allRoutes.find((r: any) => r.is_chosen_by_me === true || r.is_chosen_by_me === 1);
-      if (chosenRoute) {
-        const today = getTodayIST();
+      if (response.data && response.data.status === 'no_active_route') {
         set({
-          selectedRouteId: chosenRoute.id,
-          isLockedToday: true,
-          routeLockedDate: today,
+          allRoutes: [],
+          noActiveRouteMessage: response.data.message || "Please select a route for today's operations first.",
         });
-        await AsyncStorage.setItem('selectedRouteId', String(chosenRoute.id));
-        await AsyncStorage.setItem('routeLockedDate', today);
+      } else {
+        const allRoutesData = Array.isArray(response.data) ? response.data : [];
+        set({
+          allRoutes: allRoutesData,
+        });
+        
+        // Sync choice and lock state from the backend
+        const chosenRoute = allRoutesData.find((r: any) => r.is_chosen_by_me === true || r.is_chosen_by_me === 1);
+        if (chosenRoute) {
+          const today = getTodayIST();
+          set({
+            selectedRouteId: chosenRoute.id,
+            isLockedToday: true,
+            routeLockedDate: today,
+          });
+          await AsyncStorage.setItem('selectedRouteId', String(chosenRoute.id));
+          await AsyncStorage.setItem('routeLockedDate', today);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error fetching all routes:', error);
+      const serverData = error.response?.data;
+      if (serverData && serverData.status === 'no_active_route') {
+        set({
+          allRoutes: [],
+          noActiveRouteMessage: serverData.message || "Please select a route for today's operations first.",
+        });
+      } else {
+        set({ allRoutes: [] });
+      }
     }
   },
   selectRoute: async (routeId: number) => {

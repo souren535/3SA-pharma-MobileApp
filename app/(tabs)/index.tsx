@@ -473,11 +473,11 @@ export default function HomeScreen() {
           <View className="flex-row items-center bg-white/15 rounded-2xl py-3 px-3.5 mb-5">
             <View className="w-[38px] h-[38px] rounded-full bg-[#1A3F75] justify-center items-center mr-3">
               <Text className="text-[16px] font-bold text-white">
-                {user?.name.charAt(0)}
+                {user?.name ? user.name.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : "U")}
               </Text>
             </View>
             <Text className="flex-1 text-[16px] font-semibold text-white">
-              {user?.name}
+              {user?.name || user?.email || "Salesman"}
             </Text>
             <View
               style={{
@@ -721,7 +721,7 @@ export default function HomeScreen() {
               />
             }
           >
-            {noActiveRouteMessage ? (
+            {(noActiveRouteMessage || routes.length === 0 || !selectedRouteId) ? (
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
@@ -747,7 +747,7 @@ export default function HomeScreen() {
                     Route Assignment Required
                   </Text>
                   <Text className="text-[12px] font-medium text-amber-600 leading-4">
-                    {noActiveRouteMessage}
+                    {noActiveRouteMessage || "Please select an active route for today's operations."}
                   </Text>
                 </View>
                 {isWorking && (
@@ -758,10 +758,9 @@ export default function HomeScreen() {
                   />
                 )}
               </TouchableOpacity>
-            ) : (
-              routes.length > 0 && (() => {
-                const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
-                return (
+            ) : (() => {
+              const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
+              return (
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => {
@@ -809,7 +808,7 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   </View>
-                  {isWorking && routes.length > 1 && (
+                  {isWorking && (
                     <MaterialIcons
                       name="chevron-right"
                       size={22}
@@ -817,9 +816,8 @@ export default function HomeScreen() {
                     />
                   )}
                 </TouchableOpacity>
-                );
-              })()
-            )}
+              );
+            })()}
 
             {/* Visit Next Store — commented out, not needed right now */}
             {/* {unvisitedStores.length > 0 && (
