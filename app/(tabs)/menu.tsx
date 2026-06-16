@@ -102,87 +102,99 @@ export default function MenuScreen() {
 
   const renderCard = (item: any) => {
     if (item.type === "profile") {
+      const hasProfileImage = !!(
+        user?.profile_image &&
+        user.profile_image !== "null" &&
+        user.profile_image !== "undefined" &&
+        user.profile_image.trim() !== ""
+      );
+      const firstChar = user?.name?.trim()?.charAt(0)?.toUpperCase();
+
       return (
         <TouchableOpacity
           key={item.id}
-          className="bg-white rounded-[32px] p-6 mb-4 shadow-sm border border-slate-100 flex-row items-center"
+          className="bg-white rounded-3xl p-5 mb-4 shadow-sm border border-slate-100 flex-row items-center justify-between"
           activeOpacity={0.7}
           onPress={() => item.route && router.push(item.route)}
         >
-          <Image
-            source={item.image}
-            className="w-16 h-16 rounded-full border-2 border-indigo-100"
-            contentFit="cover"
-            transition={500}
-          />
-          <View className="ml-4 flex-1">
-            <Text className="text-xl font-bold text-slate-900">
-              {item.title}
-            </Text>
-            {/* <Text className="text-slate-500 text-sm">{item.subtitle}</Text> */}
-            <View className="flex-row items-center mt-2">
-              <View className="bg-green-100 px-2 py-0.5 rounded-full">
-                <Text className="text-green-700 text-[10px] font-bold uppercase">
-                  Active
-                </Text>
-              </View>
-              <Text className="text-slate-400 text-xs ml-2">
-                Last sync: 10m ago
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <TouchableOpacity
-        key={item.id}
-        activeOpacity={0.8}
-        className="mb-4"
-        onPress={() => item.route && router.push(item.route)}
-      >
-        <LinearGradient
-          colors={item.gradient || ["#f8fafc", "#f1f5f9"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="rounded-[32px] p-6 flex-row items-center overflow-hidden"
-        >
-          <View className="bg-white/20 p-3 rounded-2xl mr-4">
-            <Ionicons name={item.icon as any} size={28} color="white" />
-          </View>
-
-          <View className="flex-1">
-            <Text className="text-white text-lg font-bold">{item.title}</Text>
-            {typeof item.subtitle === "object" ? (
-              <View className="flex-row items-center">
-                <Text className="text-white/80 text-sm">
-                  {item.subtitle.title}:{" "}
-                </Text>
-                <Text className="text-white font-bold text-sm">
-                  {item.subtitle.subTitle}
+          <View className="flex-row items-center flex-1">
+            {hasProfileImage ? (
+              <Image
+                source={item.image}
+                className="w-16 h-16 rounded-full border-2 border-slate-100"
+                style={{ width: 64, height: 64, borderRadius: 32 }}
+                contentFit="cover"
+                transition={500}
+              />
+            ) : firstChar ? (
+              <View className="w-16 h-16 rounded-full bg-indigo-50 border-2 border-slate-100 justify-center items-center">
+                <Text className="text-2xl font-extrabold text-[#1A3F75]">
+                  {firstChar}
                 </Text>
               </View>
             ) : (
-              <Text className="text-white/80 text-sm">{item.subtitle}</Text>
+              <Image
+                source={require("../../assets/images/avatar.png")}
+                className="w-16 h-16 rounded-full border-2 border-slate-100"
+                style={{ width: 64, height: 64, borderRadius: 32 }}
+                contentFit="cover"
+                transition={500}
+              />
             )}
-          </View>
-
-          {item.stats ? (
-            <View className="bg-white/30 px-3 py-1 rounded-full">
-              <Text className="text-white text-[10px] font-bold">
-                {item.stats}
+            <View className="ml-4 flex-1">
+              <Text className="text-xl font-extrabold text-[#1A3F75]">
+                Hi {user?.name || "Salesman"}!
               </Text>
+              {user?.phone && (
+                <Text className="text-slate-500 text-sm font-semibold mt-0.5">
+                  {user.phone}
+                </Text>
+              )}
+              <View className="flex-row items-center mt-1.5 flex-wrap gap-2">
+                <View className="bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  <Text className="text-emerald-700 text-[10px] font-bold uppercase">
+                    Active
+                  </Text>
+                </View>
+                <Text className="text-slate-400 text-xs">
+                  Last sync: 10m ago
+                </Text>
+              </View>
             </View>
-          ) : null}
+          </View>
+          <View className="w-8" />
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
 
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color="rgba(255,255,255,0.6)"
-            className="ml-2"
-          />
-        </LinearGradient>
+  const renderOptionRow = (item: any, isLast: boolean) => {
+    return (
+      <TouchableOpacity
+        key={item.id}
+        activeOpacity={0.7}
+        className={`flex-row items-center py-4 px-5 justify-between ${
+          !isLast ? "border-b border-slate-100" : ""
+        }`}
+        onPress={() => item.route && router.push(item.route)}
+      >
+        <View className="flex-row items-center flex-1">
+          <View className="w-10 h-10 rounded-xl bg-slate-50 items-center justify-center border border-slate-100">
+            <Ionicons name={item.icon as any} size={20} color="#1A3F75" />
+          </View>
+          <Text className="text-[#1E293B] text-[15px] font-extrabold ml-4 flex-1">
+            {item.title}
+          </Text>
+        </View>
+        <View className="flex-row items-center">
+          {item.stats ? (
+            <Text className="text-slate-400 text-xs font-semibold mr-2">
+              {item.stats}
+            </Text>
+          ) : null}
+          <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+        </View>
       </TouchableOpacity>
     );
   };
@@ -208,10 +220,7 @@ export default function MenuScreen() {
             </TouchableOpacity>
             <View className="ml-4">
               <Text className="text-[#1E293B] text-xl font-bold tracking-wider">
-                Menu
-              </Text>
-              <Text className="text-gray-700 text-sm opacity-90">
-                Configure your workspace
+                My Profile
               </Text>
             </View>
           </View>
@@ -244,32 +253,41 @@ export default function MenuScreen() {
         {MENU_ITEMS.filter((item) => item.id === "profile").map(renderCard)}
 
         {/* Show other menu items only when attendance is marked */}
-        {isWorking &&
-          MENU_ITEMS.filter((item) => item.id !== "profile").map(renderCard)}
+        {isWorking && (
+          <View className="mt-4">
+            <Text className="text-[#1A3F75] text-[16px] font-extrabold mb-3 px-1">
+              Workspace Options
+            </Text>
+            <View className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              {MENU_ITEMS.filter((item) => item.id !== "profile").map((item, index, arr) =>
+                renderOptionRow(item, index === arr.length - 1)
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Preferences - only when attendance is marked */}
         {isWorking && (
-          <View className="mt-6 mb-4">
-            <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-3">
+          <View className="mt-6">
+            <Text className="text-[#1A3F75] text-[16px] font-extrabold mb-3 px-1">
               Preferences
             </Text>
-
-            <TouchableOpacity
-              className="bg-white rounded-3xl p-4 mb-2 flex-row items-center border border-slate-100 shadow-sm"
-              onPress={() => router.push("/pages/notifucation")}
-            >
-              <View className="bg-indigo-50 p-2 rounded-xl mr-3">
-                <Ionicons
-                  name="notifications-outline"
-                  size={20}
-                  color="#6366f1"
-                />
-              </View>
-              <Text className="flex-1 text-slate-700 font-medium">
-                Notifications
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-            </TouchableOpacity>
+            <View className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <TouchableOpacity
+                className="flex-row items-center py-4 px-5 justify-between"
+                onPress={() => router.push("/pages/notifucation")}
+              >
+                <View className="flex-row items-center flex-1">
+                  <View className="w-10 h-10 rounded-xl bg-slate-50 items-center justify-center border border-slate-100">
+                    <Ionicons name="notifications-outline" size={20} color="#1A3F75" />
+                  </View>
+                  <Text className="text-[#1E293B] text-[15px] font-extrabold ml-4 flex-1">
+                    Notifications
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -283,10 +301,10 @@ export default function MenuScreen() {
 
         <View className="items-center mt-8 opacity-30">
           <Text className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-            SFA Pro v1.0.42
+            Lead Flow V1.0.0
           </Text>
           <Text className="text-[10px] text-slate-500">
-            Built with by 3SA Team
+            By 3SA WEBX
           </Text>
         </View>
       </ScrollView>

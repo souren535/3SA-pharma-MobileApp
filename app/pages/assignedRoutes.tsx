@@ -21,6 +21,35 @@ export default function AssignedRoutesScreen() {
     title: '',
     message: '',
   });
+  const [tooltipRouteId, setTooltipRouteId] = useState<number | null>(null);
+  const tooltipTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showTooltip = (routeId: number) => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    setTooltipRouteId(routeId);
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setTooltipRouteId(null);
+    }, 3000);
+  };
+
+  const handleCardPress = (route: any) => {
+    const isActiveByOther = route.is_active_today && !route.is_chosen_by_me;
+    if (isActiveByOther) {
+      showTooltip(route.id);
+    } else {
+      handleSelectRoute(route.id);
+    }
+  };
 
   // Check attendance status and fetch all routes
   useEffect(() => {
@@ -192,14 +221,34 @@ export default function AssignedRoutesScreen() {
             return (
               <View
                 key={route.id || idx}
-                className={`bg-white mb-4 rounded-2xl shadow-sm overflow-hidden ${
-                  isSelected 
-                    ? 'border-2 border-[#1A3F75]' 
-                    : isActiveByOther
-                      ? 'border border-red-100 bg-gray-50/50 opacity-80'
-                      : 'border border-gray-100'
+                className={`bg-white mb-4 rounded-2xl shadow-sm overflow-hidden relative ${
+                  route.is_chosen_by_me
+                    ? 'border-2 border-emerald-500'
+                    : isSelected 
+                      ? 'border-2 border-[#1A3F75]' 
+                      : isActiveByOther
+                        ? 'border-2 border-red-300 bg-gray-50/50 opacity-80'
+                        : 'border border-gray-100'
                 }`}
               >
+                {/* Tooltip Overlay for Locked Routes */}
+                {tooltipRouteId === route.id && (
+                  <View className="absolute inset-0 bg-slate-900/95 flex-row items-center justify-between px-5 py-3 z-50 rounded-2xl">
+                    <View className="flex-row items-center flex-1 mr-3">
+                      <MaterialIcons name="lock" size={18} color="#F43F5E" />
+                      <Text className="text-slate-200 text-[12px] font-bold ml-2 flex-1" numberOfLines={2}>
+                        This route is currently locked by {route.active_salesman_today?.trim() || 'another salesman'} for today's operations.
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => setTooltipRouteId(null)}
+                      className="w-7 h-7 rounded-full bg-slate-800 items-center justify-center"
+                    >
+                      <Ionicons name="close" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {/* Route Header Row - Always visible */}
                 <View
                   style={{
@@ -210,78 +259,61 @@ export default function AssignedRoutesScreen() {
                     paddingBottom: isExpanded ? 16 : 20,
                   }}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => handleCardPress(route)}
+                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}
+                  >
                     {/* Checkbox / Radio for multi-route */}
                     {hasMultipleRoutes && (
-                      <TouchableOpacity
-                        onPress={() => handleSelectRoute(route.id)}
-                        className="mr-3"
-                        disabled={isLockedToday || isActiveByOther}
-                      >
+                      <View className="mr-3">
                         <View
                           className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                            isSelected
-                              ? 'border-[#1A3F75] bg-[#1A3F75]'
-                              : isLockedToday || isActiveByOther
-                                ? 'border-gray-200 bg-gray-100'
-                                : 'border-gray-300 bg-white'
+                            route.is_chosen_by_me
+                              ? 'border-emerald-500 bg-emerald-500'
+                              : isSelected
+                                ? 'border-[#1A3F75] bg-[#1A3F75]'
+                                : isActiveByOther
+                                  ? 'border-red-500 bg-red-50'
+                                  : isLockedToday
+                                    ? 'border-gray-200 bg-gray-100'
+                                    : 'border-gray-300 bg-white'
                           }`}
                         >
-                          {isSelected && (
+                          {(route.is_chosen_by_me || isSelected) && (
                             <Ionicons name="checkmark" size={16} color="white" />
                           )}
-                          {isActiveByOther && !isSelected && (
-                            <MaterialIcons name="lock" size={12} color="#9CA3AF" />
+                          {isActiveByOther && !isSelected && !route.is_chosen_by_me && (
+                            <MaterialIcons name="lock" size={12} color="#EF4444" />
                           )}
                         </View>
-                      </TouchableOpacity>
+                      </View>
                     )}
                     <View className="w-9 h-9 rounded-xl bg-[#F5F3FF] justify-center items-center mr-3">
                       <MaterialIcons name="alt-route" size={18} color="#7C3AED" />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text className="text-[16px] font-extrabold text-gray-900" numberOfLines={1}>
+                    <View style={{ flex: 1, flexShrink: 1 }}>
+                      <Text className="text-[16px] font-extrabold text-gray-900" style={{ flexShrink: 1 }}>
                         {route.name}
                       </Text>
                       <Text className="text-[12px] font-medium text-gray-400 mt-0.5">
                         {route.areas?.length || 0} Areas
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
+
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {route.is_chosen_by_me ? (
-                      <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 mr-2 flex-row items-center">
-                        <Text className="text-[11px] font-bold text-emerald-700 uppercase flex-row items-center">
-                          <Ionicons name="checkmark-circle" size={10} color="#059669" /> Active
-                        </Text>
-                      </View>
-                    ) : isActiveByOther ? (
-                      <View className="bg-red-50 px-2.5 py-1 rounded-full border border-red-200 mr-2 flex-row items-center max-w-[150px]">
-                        <Text className="text-[11px] font-bold text-red-700 uppercase flex-row items-center" numberOfLines={1}>
-                          <MaterialIcons name="lock" size={10} color="#DC2626" /> Locked by {route.active_salesman_today?.trim() || "other"}
-                        </Text>
-                      </View>
-                    ) : isSelected ? (
-                      <View className="bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100 mr-2">
-                        <Text className="text-[11px] font-bold text-[#1A3F75] uppercase">Selected</Text>
-                      </View>
-                    ) : (
-                      !isLockedToday && (
-                        <View className="bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200 mr-2">
-                          <Text className="text-[11px] font-bold text-gray-500 uppercase">Available</Text>
-                        </View>
-                      )
-                    )}
                     <TouchableOpacity 
                       onPress={() => toggleRoute(route.id ?? idx)}
                       style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      backgroundColor: '#F3F4F6',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        backgroundColor: '#F3F4F6',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
                       <MaterialIcons
                         name={isExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
                         size={20}

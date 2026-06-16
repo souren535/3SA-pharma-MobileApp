@@ -85,6 +85,27 @@ export default function StoreInfoScreen() {
   const [transactionFilter, setTransactionFilter] = useState<
     "All" | "Credit" | "Debit"
   >("All");
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [showFilterDatePicker, setShowFilterDatePicker] = useState(false);
+
+  const horizontalScrollRef = useRef<ScrollView>(null);
+
+  const handleTabPress = (tabName: TabName) => {
+    setActiveTab(tabName);
+    const index = tabs.indexOf(tabName);
+    horizontalScrollRef.current?.scrollTo({ x: index * screenWidth, animated: true });
+  };
+
+  const handleMomentumScrollEnd = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / screenWidth);
+    if (index >= 0 && index < tabs.length) {
+      const targetTab = tabs[index];
+      if (activeTab !== targetTab) {
+        setActiveTab(targetTab);
+      }
+    }
+  };
 
   // Zustand stores
   const {
@@ -370,10 +391,27 @@ export default function StoreInfoScreen() {
 
     const safeLedger = Array.isArray(ledger) ? ledger : [];
     const filteredTransactions = safeLedger.filter((t) => {
-      if (transactionFilter === "All") return true;
-      if (transactionFilter === "Credit") return t.type === "Order";
-      if (transactionFilter === "Debit") return t.type === "Payment";
-      return false;
+      // 1. Filter by Type
+      let matchesType = true;
+      if (transactionFilter === "Credit") matchesType = t.type === "Order";
+      else if (transactionFilter === "Debit") matchesType = t.type === "Payment";
+
+      // 2. Filter by Date
+      let matchesDate = true;
+      if (filterDate) {
+        const txDateStr = t.date || t.created_at;
+        if (txDateStr) {
+          const txDate = new Date(txDateStr);
+          matchesDate = 
+            txDate.getFullYear() === filterDate.getFullYear() &&
+            txDate.getMonth() === filterDate.getMonth() &&
+            txDate.getDate() === filterDate.getDate();
+        } else {
+          matchesDate = false;
+        }
+      }
+
+      return matchesType && matchesDate;
     });
 
     // Calculate Summary from Ledger or API Summary
@@ -454,16 +492,48 @@ export default function StoreInfoScreen() {
             <Text className="font-bold text-gray-800 text-sm">
               Transactions
             </Text>
-            <TouchableOpacity
-              className="flex-row items-center bg-white px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200"
-              onPress={() => setShowFilterPopup(true)}
-            >
-              <Ionicons name="filter" size={14} color="#1A3F75" />
-              <Text className="text-[#1A3F75] font-semibold text-[11px] ml-1">
-                Filter: {transactionFilter}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity
+                className="flex-row items-center bg-white px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200"
+                onPress={() => setShowFilterPopup(true)}
+              >
+                <Ionicons name="filter" size={14} color="#1A3F75" />
+                <Text className="text-[#1A3F75] font-semibold text-[11px] ml-1">
+                  Type: {transactionFilter}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="flex-row items-center bg-white px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200"
+                onPress={() => setShowFilterDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={14} color="#1A3F75" />
+                <Text className="text-[#1A3F75] font-semibold text-[11px] ml-1">
+                  {filterDate ? formatDisplayDate(filterDate) : "Select Date"}
+                </Text>
+              </TouchableOpacity>
+
+              {filterDate && (
+                <TouchableOpacity
+                  className="bg-red-50 p-1.5 rounded-lg border border-red-200"
+                  onPress={() => setFilterDate(null)}
+                >
+                  <Ionicons name="close" size={12} color="#DC2626" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+
+          {showFilterDatePicker && (
+            <DateTimePicker
+              value={filterDate || new Date()}
+              mode="date"
+              onChange={(_, date) => {
+                setShowFilterDatePicker(false);
+                if (date) setFilterDate(date);
+              }}
+            />
+          )}
         </View>
 
         {/* Scrollable Transactions List */}
@@ -795,7 +865,7 @@ export default function StoreInfoScreen() {
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab}
-              onPress={() => setActiveTab(tab)}
+              onPress={() => handleTabPress(tab)}
               className="flex-1 items-center pb-3"
             >
               <Text
@@ -811,11 +881,27 @@ export default function StoreInfoScreen() {
         </View>
       </LinearGradient>
 
-      {/* Fixed Tab Content */}
+      {/* Swipeable Tab Content */}
       <View className="flex-1">
-        {activeTab === "Orders" && renderOrders()}
-        {activeTab === "Transaction" && renderTransactions()}
-        {activeTab === "Info" && renderInfo()}
+        <ScrollView
+          ref={horizontalScrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          style={{ flex: 1 }}
+          scrollEventThrottle={16}
+        >
+          <View style={{ width: screenWidth, flex: 1 }}>
+            {renderOrders()}
+          </View>
+          <View style={{ width: screenWidth, flex: 1 }}>
+            {renderTransactions()}
+          </View>
+          <View style={{ width: screenWidth, flex: 1 }}>
+            {renderInfo()}
+          </View>
+        </ScrollView>
       </View>
 
       {/* Animated FAB Menu Background Overlay (Only for Orders) */}
@@ -1140,7 +1226,7 @@ export default function StoreInfoScreen() {
 
       {/* ===== VISIT TYPE SELECTION MODAL ===== */}
       <Modal visible={showVisitTypeModal} animationType="fade" transparent>
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
@@ -1466,8 +1552,8 @@ export default function StoreInfoScreen() {
                       showPopup("Success", "Visit recorded successfully!");
                     } catch (error: any) {
                       console.error("Failed to submit visit:", error.response?.data || error.message);
-                      const errorMsg = error.response?.data?.message || 
-                                     (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) || 
+                      const errorMsg = error.response?.data?.message ||
+                                     (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) ||
                                      "Failed to record visit. Please try again.";
                       showPopup(
                         "Error",
@@ -1560,8 +1646,8 @@ export default function StoreInfoScreen() {
                     showPopup("Success", "Visit note submitted successfully!");
                   } catch (error: any) {
                     console.error("Failed to submit visit note:", error.response?.data || error.message);
-                    const errorMsg = error.response?.data?.message || 
-                                   (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) || 
+                    const errorMsg = error.response?.data?.message ||
+                                   (error.response?.data?.errors ? JSON.stringify(error.response?.data?.errors) : null) ||
                                    "Failed to submit visit note. Please try again.";
                     showPopup(
                       "Error",
