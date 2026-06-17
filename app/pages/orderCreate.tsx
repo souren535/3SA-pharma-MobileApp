@@ -542,7 +542,9 @@ export default function OrderCreateScreen() {
           mode="date"
           onChange={(e, date) => {
             setShowDatePicker(false);
-            if (date) setDeliveryDate(date);
+            if (e.type === "set" && date) {
+              setDeliveryDate(date);
+            }
           }}
         />
       )}

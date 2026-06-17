@@ -528,9 +528,11 @@ export default function StoreInfoScreen() {
             <DateTimePicker
               value={filterDate || new Date()}
               mode="date"
-              onChange={(_, date) => {
+              onChange={(event, date) => {
                 setShowFilterDatePicker(false);
-                if (date) setFilterDate(date);
+                if (event.type === "set" && date) {
+                  setFilterDate(date);
+                }
               }}
             />
           )}
@@ -1134,9 +1136,11 @@ export default function StoreInfoScreen() {
                 <DateTimePicker
                   value={transDate}
                   mode="date"
-                  onChange={(_, date) => {
+                  onChange={(event, date) => {
                     setShowTransDatePicker(false);
-                    if (date) setTransDate(date);
+                    if (event.type === "set" && date) {
+                      setTransDate(date);
+                    }
                   }}
                 />
               )}
