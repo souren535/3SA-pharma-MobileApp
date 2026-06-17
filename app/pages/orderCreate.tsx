@@ -978,6 +978,7 @@ export default function OrderCreateScreen() {
                           height: 300,
                         }}
                         facing="front"
+                        mirror={true}
                       />
                     )}
                     <TouchableOpacity

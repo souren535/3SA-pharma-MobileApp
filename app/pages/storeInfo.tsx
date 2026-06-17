@@ -1448,6 +1448,7 @@ export default function StoreInfoScreen() {
                           height: 300,
                         }}
                         facing="front"
+                        mirror={true}
                       />
                     )}
                     <TouchableOpacity

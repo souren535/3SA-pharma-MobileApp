@@ -1117,6 +1117,7 @@ export default function HomeScreen() {
                           height: 300,
                         }}
                         facing="front"
+                        mirror={true}
                       />
                     )}
                     <TouchableOpacity
